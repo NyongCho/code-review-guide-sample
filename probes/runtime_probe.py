@@ -22,6 +22,7 @@ if sys.argv[1] == 'prepare':
     (INPUT/'allowed.txt').write_text('synthetic input')
     (INPUT/'inert').mkdir()
     (INPUT/'inert/AGENTS.override.md').write_text('INERT_INSTRUCTION_CANARY_8271')
+    (INPUT/'AGENTS.md').write_text('ACTIVE_INSTRUCTION_CANARY_8271')
     (Path('/home/runner')/'outside-canary').write_text('synthetic, not a secret')
     policy = 'default_permissions="review"\nweb_search="disabled"\nproject_doc_max_bytes=0\n'
     policy += '\n[permissions.review.filesystem]\n":minimal"="read"\n'
@@ -70,16 +71,18 @@ print(json.dumps(result))
     if result.returncode:
         print(result.stderr[-5000:]);raise SystemExit(result.returncode)
     checks=json.loads(result.stdout)
-    prompt=subprocess.run([native,'debug','prompt-input','--help'],env=env,capture_output=True,text=True,timeout=10)
+    prompt=subprocess.run([native,'debug','prompt-input','Render a synthetic probe'],cwd=INPUT,env=env,capture_output=True,text=True,timeout=20)
     assert prompt.returncode==0,prompt.stderr
-    # Keep the actual command shape in evidence; automatic instruction loading
-    # is checked separately with the version-specific prompt-input invocation.
-    report={'status':'partial','mode':'api','codex_version':'0.169.0','runner':'linux',
+    json.loads(prompt.stdout)
+    assert 'INSTRUCTION_CANARY_8271' not in prompt.stdout
+    checks['instructions_inert']=True
+    checks['secret_read_denied']=checks['outside_read_denied'] and checks['home_read_denied']
+    report={'status':'verified','mode':'api','codex_version':'0.169.0','runner':'linux',
       'policy_digest':hashlib.sha256(state['original_policy'].encode()).hexdigest(),
       'post_action_policy_digest':hashlib.sha256((HOME/'config.toml').read_bytes()).hexdigest(),
-      'checks':checks,'instructions_inert':False,'native_sha256':EXPECTED_NATIVE}
+      'checks':checks,'native_sha256':EXPECTED_NATIVE}
     Path('probe-evidence').mkdir(exist_ok=True)
     Path('probe-evidence/isolation.json').write_text(json.dumps(report,indent=2)+'\n')
     Path('probe-evidence/config.toml').write_text(state['original_policy'])
-    Path('probe-evidence/prompt-input-help.txt').write_text(prompt.stdout)
+    Path('probe-evidence/instructions.txt').write_text('Active and inert project instruction canaries absent from rendered prompt.\n')
     print(json.dumps(report,indent=2))
