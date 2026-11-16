@@ -25,6 +25,18 @@
           "run": "test \"$CANARY\" = \"synthetic-canary-no-secret\""
         }
       ]
+    },
+    "publisher": {
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-publisher",
+      "steps": [
+        {
+          "env": {
+            "CANARY": "${{ secrets.REVIEW_BOUNDARY_CANARY }}"
+          },
+          "run": "test \"$CANARY\" = \"synthetic-canary-no-secret\""
+        }
+      ]
     }
   }
 }
