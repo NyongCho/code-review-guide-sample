@@ -135,8 +135,9 @@ def _write_checks(run: Json, config: Json, publisher: GitHub, checks: Json, summ
         if existing_only and existing is None:continue
         data = {'name':'review-guide/'+name,'head_sha':run['head_sha'],
                 'status':'in_progress' if pending else 'completed', 'external_id':external,
-                'conclusion':None if pending else checks[name],
                 'output':{'title':'Review pending' if pending else run['status'],'summary':summary}}
+        if not pending:
+            data['conclusion'] = checks[name]
         written = publisher.call('PATCH' if existing else 'POST',
                   f'{root}/check-runs/{existing["id"]}' if existing else f'{root}/check-runs',data)
         require(written.get('app',{}).get('id') == app_id, 'check was not written by the configured publisher App')
