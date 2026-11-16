@@ -167,8 +167,14 @@ def ci_main(operation: str, artifact_name=None, destination=None) -> Json:
     if operation == 'fetch-artifact':
         from .github import download_artifact
         name = f'{os.environ["GITHUB_RUN_ID"]}-{os.environ["GITHUB_RUN_ATTEMPT"]}-{artifact_name}'
-        download_artifact(cfg['repository'], {'name': name, 'run_id': int(os.environ['GITHUB_RUN_ID']),
-                          'head_sha': os.environ['GITHUB_WORKFLOW_SHA']}, destination, api)
+        run_id = int(os.environ['GITHUB_RUN_ID'])
+        metadata = api.call('GET', f'/repos/{cfg["repository"]}/actions/runs/{run_id}')
+        require(metadata.get('id') == run_id and metadata.get('run_attempt') == int(os.environ['GITHUB_RUN_ATTEMPT']),
+                'artifact run attempt mismatch')
+        # pull_request_target artifacts name the event head, not the protected workflow commit.
+        # The downloaded state must still match GITHUB_WORKFLOW_SHA before use below.
+        download_artifact(cfg['repository'], {'name': name, 'run_id': run_id,
+                          'head_sha': metadata['head_sha']}, destination, api)
         return {'status': 'downloaded'}
     if operation == 'approval':
         require(os.environ.get('GITHUB_REF') == cfg['trusted_ref'], 'approval requires trusted ref')
