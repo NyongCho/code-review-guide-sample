@@ -10,7 +10,8 @@
       "runs-on": "ubuntu-24.04",
       "steps": [
         {
-          "run": "true"
+          "run": "exit 1",
+          "name": "Intentional failure to verify required-check enforcement"
         }
       ]
     },
