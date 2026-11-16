@@ -26,18 +26,23 @@
   {
     "layer": 4,
     "name": "필수 CI",
-    "status": "needs_verification",
-    "evidence": [],
+    "status": "verified",
+    "evidence": [
+      "https://github.com/NyongCho/code-review-guide-sample/actions/runs/43827168365",
+      "https://github.com/NyongCho/code-review-guide-sample/actions/runs/43824609484"
+    ],
     "trigger": "테스트 명령 확보",
-    "next_action": "프로젝트의 실제 동작과 검증 명령을 연결하고 결과를 기록한다."
+    "next_action": "Retest changed heads; retain required checks from the dedicated App."
   },
   {
     "layer": 5,
     "name": "위험도별 사람 확인",
     "status": "needs_verification",
-    "evidence": [],
+    "evidence": [
+      "https://github.com/NyongCho/code-review-guide-sample/pull/7"
+    ],
     "trigger": "민감 경로 도입",
-    "next_action": "프로젝트의 실제 동작과 검증 명령을 연결하고 결과를 기록한다."
+    "next_action": "Verify scoped human approval permits only its bound input."
   },
   {
     "layer": 6,

@@ -181,7 +181,7 @@
       "if": "${{ !cancelled() && needs.inspect_0.outputs.mode == 'self_hosted' && needs.inspect_0.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -231,7 +231,7 @@
       "if": "${{ !cancelled() && needs.inspect_0.outputs.mode == 'api' && needs.inspect_0.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -273,7 +273,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
           }
         },
         {
@@ -475,7 +475,7 @@
       "if": "${{ !cancelled() && needs.inspect_1.outputs.mode == 'self_hosted' && needs.inspect_1.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -525,7 +525,7 @@
       "if": "${{ !cancelled() && needs.inspect_1.outputs.mode == 'api' && needs.inspect_1.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -567,7 +567,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
           }
         },
         {
@@ -769,7 +769,7 @@
       "if": "${{ !cancelled() && needs.inspect_2.outputs.mode == 'self_hosted' && needs.inspect_2.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -819,7 +819,7 @@
       "if": "${{ !cancelled() && needs.inspect_2.outputs.mode == 'api' && needs.inspect_2.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -861,7 +861,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
           }
         },
         {
@@ -1063,7 +1063,7 @@
       "if": "${{ !cancelled() && needs.inspect_3.outputs.mode == 'self_hosted' && needs.inspect_3.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -1113,7 +1113,7 @@
       "if": "${{ !cancelled() && needs.inspect_3.outputs.mode == 'api' && needs.inspect_3.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -1155,7 +1155,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
           }
         },
         {
@@ -1357,7 +1357,7 @@
       "if": "${{ !cancelled() && needs.inspect_4.outputs.mode == 'self_hosted' && needs.inspect_4.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -1407,7 +1407,7 @@
       "if": "${{ !cancelled() && needs.inspect_4.outputs.mode == 'api' && needs.inspect_4.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -1449,7 +1449,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
           }
         },
         {
@@ -1651,7 +1651,7 @@
       "if": "${{ !cancelled() && needs.inspect_5.outputs.mode == 'self_hosted' && needs.inspect_5.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -1701,7 +1701,7 @@
       "if": "${{ !cancelled() && needs.inspect_5.outputs.mode == 'api' && needs.inspect_5.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -1743,7 +1743,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
           }
         },
         {
@@ -1945,7 +1945,7 @@
       "if": "${{ !cancelled() && needs.inspect_6.outputs.mode == 'self_hosted' && needs.inspect_6.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -1995,7 +1995,7 @@
       "if": "${{ !cancelled() && needs.inspect_6.outputs.mode == 'api' && needs.inspect_6.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -2037,7 +2037,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
           }
         },
         {
@@ -2239,7 +2239,7 @@
       "if": "${{ !cancelled() && needs.inspect_7.outputs.mode == 'self_hosted' && needs.inspect_7.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -2289,7 +2289,7 @@
       "if": "${{ !cancelled() && needs.inspect_7.outputs.mode == 'api' && needs.inspect_7.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -2331,7 +2331,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
           }
         },
         {
@@ -2533,7 +2533,7 @@
       "if": "${{ !cancelled() && needs.inspect_8.outputs.mode == 'self_hosted' && needs.inspect_8.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -2583,7 +2583,7 @@
       "if": "${{ !cancelled() && needs.inspect_8.outputs.mode == 'api' && needs.inspect_8.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -2625,7 +2625,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
           }
         },
         {
@@ -2827,7 +2827,7 @@
       "if": "${{ !cancelled() && needs.inspect_9.outputs.mode == 'self_hosted' && needs.inspect_9.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -2877,7 +2877,7 @@
       "if": "${{ !cancelled() && needs.inspect_9.outputs.mode == 'api' && needs.inspect_9.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -2919,7 +2919,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
           }
         },
         {
@@ -3121,7 +3121,7 @@
       "if": "${{ !cancelled() && needs.inspect_10.outputs.mode == 'self_hosted' && needs.inspect_10.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -3171,7 +3171,7 @@
       "if": "${{ !cancelled() && needs.inspect_10.outputs.mode == 'api' && needs.inspect_10.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -3213,7 +3213,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
           }
         },
         {
@@ -3415,7 +3415,7 @@
       "if": "${{ !cancelled() && needs.inspect_11.outputs.mode == 'self_hosted' && needs.inspect_11.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -3465,7 +3465,7 @@
       "if": "${{ !cancelled() && needs.inspect_11.outputs.mode == 'api' && needs.inspect_11.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -3507,7 +3507,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
           }
         },
         {
@@ -3709,7 +3709,7 @@
       "if": "${{ !cancelled() && needs.inspect_12.outputs.mode == 'self_hosted' && needs.inspect_12.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -3759,7 +3759,7 @@
       "if": "${{ !cancelled() && needs.inspect_12.outputs.mode == 'api' && needs.inspect_12.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -3801,7 +3801,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
           }
         },
         {
@@ -4003,7 +4003,7 @@
       "if": "${{ !cancelled() && needs.inspect_13.outputs.mode == 'self_hosted' && needs.inspect_13.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -4053,7 +4053,7 @@
       "if": "${{ !cancelled() && needs.inspect_13.outputs.mode == 'api' && needs.inspect_13.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -4095,7 +4095,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
           }
         },
         {
@@ -4297,7 +4297,7 @@
       "if": "${{ !cancelled() && needs.inspect_14.outputs.mode == 'self_hosted' && needs.inspect_14.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -4347,7 +4347,7 @@
       "if": "${{ !cancelled() && needs.inspect_14.outputs.mode == 'api' && needs.inspect_14.outputs.role != '' }}",
       "runs-on": "ubuntu-24.04",
       "environment": "review-runtime",
-      "timeout-minutes": 12,
+      "timeout-minutes": 3,
       "permissions": {
         "contents": "read",
         "actions": "read"
@@ -4389,7 +4389,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
           }
         },
         {
