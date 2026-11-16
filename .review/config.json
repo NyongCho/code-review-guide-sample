@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "repository": "NyongCho/code-review-guide-sample",
+  "allowed_actors": [
+    "NyongCho"
+  ],
+  "mode": "api",
+  "model": "gpt-6-astra",
+  "effort": "low",
+  "codex_version": "0.169.0",
+  "test_commands": [
+    [
+      "python3",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "tests"
+    ]
+  ],
+  "review_mode": "observe",
+  "auto_fix": false,
+  "max_rounds": 3,
+  "entry_isolation": {
+    "status": "needs_verification"
+  },
+  "isolation": {
+    "status": "needs_verification"
+  },
+  "api_budget": {
+    "approved_usd": 5,
+    "max_calls": 3
+  },
+  "check_publisher_app_id": 5780251,
+  "critical_trials": 3,
+  "auto_merge": false,
+  "model_timeout_s": 600,
+  "run_timeout_s": 3600,
+  "retention_days": 14,
+  "trusted_ref": "refs/heads/main",
+  "sensitive_paths": [
+    "auth/**",
+    "**/auth/**",
+    "billing/**",
+    "**/billing/**",
+    "migrations/**",
+    "**/migrations/**",
+    ".github/**",
+    ".review/**",
+    ".agents/**",
+    ".codex/**",
+    "**/AGENTS*",
+    "AGENTS*",
+    "REVIEW.md",
+    "*lock*",
+    "pyproject.toml"
+  ],
+  "fix_allowed": [
+    "src/**",
+    "tests/**"
+  ],
+  "blocked_severities": [
+    "P0",
+    "P1"
+  ]
+}

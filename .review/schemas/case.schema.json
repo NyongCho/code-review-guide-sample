@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "case",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string"
+    },
+    "input_digest": {
+      "type": "string"
+    },
+    "source": {
+      "type": "object"
+    },
+    "status": {
+      "enum": [
+        "candidate",
+        "confirmed"
+      ]
+    },
+    "critical": {
+      "type": "boolean"
+    },
+    "split": {
+      "enum": [
+        "tuning",
+        "holdout"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "input_digest",
+    "source",
+    "status",
+    "critical",
+    "split"
+  ],
+  "additionalProperties": true
+}

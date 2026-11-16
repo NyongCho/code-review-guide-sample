@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "run",
+  "type": "object",
+  "properties": {
+    "repository": {
+      "type": "string"
+    },
+    "base_sha": {
+      "type": "string"
+    },
+    "head_sha": {
+      "type": "string"
+    },
+    "policy_sha": {
+      "type": "string"
+    },
+    "input_digest": {
+      "type": "string"
+    },
+    "config_digest": {
+      "type": "string"
+    },
+    "prompt_digest": {
+      "type": "string"
+    },
+    "mode": {
+      "type": "string"
+    },
+    "auth_kind": {
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "codex_version": {
+      "type": "string"
+    },
+    "runner": {
+      "type": "string"
+    },
+    "role": {
+      "type": "string"
+    },
+    "deadline_at": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "pr": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "round": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "rules": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "bug",
+              "security",
+              "spec"
+            ]
+          },
+          "severity": {
+            "enum": [
+              "P0",
+              "P1",
+              "P2",
+              "P3"
+            ]
+          },
+          "path": {
+            "type": "string"
+          },
+          "condition": {
+            "type": "string"
+          },
+          "impact": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "severity",
+          "path",
+          "condition",
+          "impact",
+          "evidence",
+          "line"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {}
+    }
+  },
+  "required": [
+    "repository",
+    "base_sha",
+    "head_sha",
+    "policy_sha",
+    "input_digest",
+    "config_digest",
+    "prompt_digest",
+    "mode",
+    "auth_kind",
+    "model",
+    "codex_version",
+    "runner",
+    "role",
+    "deadline_at",
+    "status",
+    "schema_version",
+    "pr",
+    "round",
+    "rules",
+    "findings",
+    "evidence"
+  ],
+  "additionalProperties": true
+}

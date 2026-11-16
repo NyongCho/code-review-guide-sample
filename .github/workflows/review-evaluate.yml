@@ -1,0 +1,272 @@
+{
+  "name": "Evaluate one frozen trial",
+  "permissions": {},
+  "on": {
+    "workflow_dispatch": {
+      "inputs": {
+        "manifest": {
+          "required": true,
+          "type": "string",
+          "description": "Manifest path relative to .review/evals"
+        },
+        "case_id": {
+          "required": true,
+          "type": "string",
+          "description": "Confirmed case folder name"
+        },
+        "configuration": {
+          "required": true,
+          "type": "string",
+          "description": "Frozen configuration digest"
+        },
+        "trial": {
+          "required": true,
+          "type": "string",
+          "description": "Trial index from the expected manifest"
+        }
+      }
+    }
+  },
+  "jobs": {
+    "entry": {
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 5,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "outputs": {
+        "mode": "${{ steps.control.outputs.mode }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci eval-entry",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-eval-input",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "self_hosted": {
+      "needs": [
+        "entry"
+      ],
+      "if": "${{ needs.entry.outputs.mode == 'self_hosted' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 60,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name eval-input --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci eval-self-hosted",
+          "env": {
+            "REVIEW_SSH_KEY": "${{ secrets.REVIEW_SSH_KEY }}",
+            "REVIEW_SSH_HOST": "${{ vars.REVIEW_SSH_HOST }}",
+            "REVIEW_SSH_USER": "${{ vars.REVIEW_SSH_USER }}",
+            "REVIEW_SSH_PORT": "${{ vars.REVIEW_SSH_PORT }}",
+            "REVIEW_SSH_KNOWN_HOSTS": "${{ vars.REVIEW_SSH_KNOWN_HOSTS }}"
+          }
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-eval-record-self_hosted",
+            "path": "trial-record.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          },
+          "if": "${{ always() && !cancelled() }}"
+        }
+      ]
+    },
+    "api": {
+      "needs": [
+        "entry"
+      ],
+      "if": "${{ needs.entry.outputs.mode == 'api' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 60,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name eval-input --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci eval-request",
+          "env": {
+            "EVAL_ROLE": "bugs"
+          },
+          "id": "prepare_bugs"
+        },
+        {
+          "name": "Call Codex",
+          "id": "codex_bugs",
+          "uses": "openai/codex-action@13e9c17417b29e9a276f73ec6ed7fb574137d3c3",
+          "timeout-minutes": "${{ fromJSON(steps.prepare_bugs.outputs.timeout_minutes) }}",
+          "continue-on-error": true,
+          "with": {
+            "openai-api-key": "${{ secrets.OPENAI_API_KEY }}",
+            "prompt-file": "request/prompt.md",
+            "output-file": "raw-bugs.json",
+            "output-schema-file": "/home/runner/review-input/policy/.review/schemas/model-output.schema.json",
+            "working-directory": "/home/runner/review-input",
+            "codex-home": "/home/runner/review-home",
+            "permission-profile": "review",
+            "safety-strategy": "drop-sudo",
+            "codex-version": "${{ steps.prepare_bugs.outputs.codex_version }}",
+            "model": "${{ steps.prepare_bugs.outputs.model }}",
+            "effort": "${{ steps.prepare_bugs.outputs.effort }}",
+            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci eval-normalize",
+          "env": {
+            "EVAL_ROLE": "bugs",
+            "ACTION_OUTCOME": "${{ steps.codex_bugs.outcome }}"
+          },
+          "if": "${{ always() && !cancelled() }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci eval-request",
+          "env": {
+            "EVAL_ROLE": "security"
+          },
+          "id": "prepare_security"
+        },
+        {
+          "name": "Call Codex",
+          "id": "codex_security",
+          "uses": "openai/codex-action@13e9c17417b29e9a276f73ec6ed7fb574137d3c3",
+          "timeout-minutes": "${{ fromJSON(steps.prepare_security.outputs.timeout_minutes) }}",
+          "continue-on-error": true,
+          "with": {
+            "openai-api-key": "${{ secrets.OPENAI_API_KEY }}",
+            "prompt-file": "request/prompt.md",
+            "output-file": "raw-security.json",
+            "output-schema-file": "/home/runner/review-input/policy/.review/schemas/model-output.schema.json",
+            "working-directory": "/home/runner/review-input",
+            "codex-home": "/home/runner/review-home",
+            "permission-profile": "review",
+            "safety-strategy": "drop-sudo",
+            "codex-version": "${{ steps.prepare_security.outputs.codex_version }}",
+            "model": "${{ steps.prepare_security.outputs.model }}",
+            "effort": "${{ steps.prepare_security.outputs.effort }}",
+            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci eval-normalize",
+          "env": {
+            "EVAL_ROLE": "security",
+            "ACTION_OUTCOME": "${{ steps.codex_security.outcome }}"
+          },
+          "if": "${{ always() && !cancelled() }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci eval-request",
+          "env": {
+            "EVAL_ROLE": "verify"
+          },
+          "id": "prepare_verify"
+        },
+        {
+          "name": "Call Codex",
+          "id": "codex_verify",
+          "uses": "openai/codex-action@13e9c17417b29e9a276f73ec6ed7fb574137d3c3",
+          "timeout-minutes": "${{ fromJSON(steps.prepare_verify.outputs.timeout_minutes) }}",
+          "continue-on-error": true,
+          "with": {
+            "openai-api-key": "${{ secrets.OPENAI_API_KEY }}",
+            "prompt-file": "request/prompt.md",
+            "output-file": "raw-verify.json",
+            "output-schema-file": "/home/runner/review-input/policy/.review/schemas/model-output.schema.json",
+            "working-directory": "/home/runner/review-input",
+            "codex-home": "/home/runner/review-home",
+            "permission-profile": "review",
+            "safety-strategy": "drop-sudo",
+            "codex-version": "${{ steps.prepare_verify.outputs.codex_version }}",
+            "model": "${{ steps.prepare_verify.outputs.model }}",
+            "effort": "${{ steps.prepare_verify.outputs.effort }}",
+            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci eval-normalize",
+          "env": {
+            "EVAL_ROLE": "verify",
+            "ACTION_OUTCOME": "${{ steps.codex_verify.outcome }}"
+          },
+          "if": "${{ always() && !cancelled() }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci eval-record",
+          "if": "${{ always() && !cancelled() }}"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-eval-record-api",
+            "path": "trial-record.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          },
+          "if": "${{ always() && !cancelled() }}"
+        }
+      ]
+    }
+  }
+}
