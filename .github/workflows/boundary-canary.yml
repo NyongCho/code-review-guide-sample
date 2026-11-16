@@ -1,0 +1,30 @@
+{
+  "name": "Boundary canary",
+  "on": {
+    "workflow_dispatch": {},
+    "pull_request": {}
+  },
+  "permissions": {},
+  "jobs": {
+    "ci": {
+      "runs-on": "ubuntu-24.04",
+      "steps": [
+        {
+          "run": "true"
+        }
+      ]
+    },
+    "protected": {
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "steps": [
+        {
+          "env": {
+            "CANARY": "${{ secrets.REVIEW_BOUNDARY_CANARY }}"
+          },
+          "run": "test \"$CANARY\" = \"synthetic-canary-no-secret\""
+        }
+      ]
+    }
+  }
+}
