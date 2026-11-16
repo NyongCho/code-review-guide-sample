@@ -1,0 +1,55 @@
+{
+  "name": "Approve scoped review decision",
+  "on": {
+    "workflow_dispatch": {
+      "inputs": {
+        "binding": {
+          "description": "Canonical binding JSON, reviewed by the operator",
+          "required": true,
+          "type": "string"
+        }
+      }
+    }
+  },
+  "permissions": {
+    "contents": "read"
+  },
+  "jobs": {
+    "binding": {
+      "runs-on": "ubuntu-24.04",
+      "outputs": {
+        "digest": "${{ steps.binding.outputs.digest }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci approval",
+          "env": {
+            "BINDING": "${{ inputs.binding }}"
+          },
+          "id": "binding"
+        }
+      ]
+    },
+    "approve": {
+      "needs": [
+        "binding"
+      ],
+      "name": "approve-${{ needs.binding.outputs.digest }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-approval",
+      "steps": [
+        {
+          "run": "true"
+        }
+      ]
+    }
+  }
+}

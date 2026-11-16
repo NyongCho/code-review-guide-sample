@@ -1,0 +1,4614 @@
+{
+  "name": "Project AI review",
+  "on": {
+    "pull_request_target": {
+      "types": [
+        "opened",
+        "synchronize",
+        "reopened",
+        "edited",
+        "ready_for_review"
+      ]
+    }
+  },
+  "permissions": {},
+  "concurrency": {
+    "group": "review-${{ github.event.pull_request.number }}",
+    "cancel-in-progress": true
+  },
+  "jobs": {
+    "entry": {
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 5,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "environment": "review-publisher",
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "id": "publisher-token",
+          "uses": "actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349",
+          "with": {
+            "app-id": "${{ vars.REVIEW_APP_ID }}",
+            "private-key": "${{ secrets.REVIEW_APP_PRIVATE_KEY }}",
+            "permission-checks": "write",
+            "permission-contents": "read",
+            "permission-administration": "read"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci entry",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "REVIEW_CHECK_TOKEN": "${{ steps.publisher-token.outputs.token }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-entry",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "tests_0": {
+      "needs": [
+        "entry"
+      ],
+      "if": "${{ !cancelled() && needs.entry.result == 'success' && needs.entry.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 15,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name entry --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci tests"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-tests_0",
+            "path": "test-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "inspect_0": {
+      "needs": [
+        "entry",
+        "tests_0"
+      ],
+      "if": "${{ always() && !cancelled() && needs.entry.result == 'success' && needs.entry.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 5,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name entry --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name tests_0 --destination test-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.tests_0.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci inspect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "TEST_OUTCOME": "${{ needs.tests_0.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-inspect_0",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "self_hosted_0": {
+      "needs": [
+        "inspect_0"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_0.outputs.mode == 'self_hosted' && needs.inspect_0.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_0 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci ssh-worker",
+          "env": {
+            "REVIEW_SSH_KEY": "${{ secrets.REVIEW_SSH_KEY }}",
+            "REVIEW_SSH_HOST": "${{ vars.REVIEW_SSH_HOST }}",
+            "REVIEW_SSH_USER": "${{ vars.REVIEW_SSH_USER }}",
+            "REVIEW_SSH_PORT": "${{ vars.REVIEW_SSH_PORT }}",
+            "REVIEW_SSH_KNOWN_HOSTS": "${{ vars.REVIEW_SSH_KNOWN_HOSTS }}"
+          },
+          "id": "prepare"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-self_hosted_0",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "api_0": {
+      "needs": [
+        "inspect_0"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_0.outputs.mode == 'api' && needs.inspect_0.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_0 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci prepare-worker",
+          "id": "prepare"
+        },
+        {
+          "name": "Call Codex",
+          "id": "codex",
+          "uses": "openai/codex-action@13e9c17417b29e9a276f73ec6ed7fb574137d3c3",
+          "timeout-minutes": "${{ fromJSON(steps.prepare.outputs.timeout_minutes) }}",
+          "continue-on-error": true,
+          "with": {
+            "openai-api-key": "${{ secrets.OPENAI_API_KEY }}",
+            "prompt-file": "request/prompt.md",
+            "output-file": "raw-result.json",
+            "output-schema-file": "/home/runner/review-input/policy/.review/schemas/model-output.schema.json",
+            "working-directory": "/home/runner/review-input",
+            "codex-home": "/home/runner/review-home",
+            "permission-profile": "review",
+            "safety-strategy": "drop-sudo",
+            "codex-version": "${{ steps.prepare.outputs.codex_version }}",
+            "model": "${{ steps.prepare.outputs.model }}",
+            "effort": "${{ steps.prepare.outputs.effort }}",
+            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci normalize-worker",
+          "env": {
+            "ACTION_OUTCOME": "${{ steps.codex.outcome }}"
+          },
+          "if": "${{ always() && !cancelled() }}"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-api_0",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "collect_0": {
+      "needs": [
+        "inspect_0",
+        "self_hosted_0",
+        "api_0"
+      ],
+      "if": "${{ always() && !cancelled() && needs.inspect_0.result == 'success' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 10,
+      "permissions": {
+        "contents": "write",
+        "actions": "read",
+        "pull-requests": "write"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_0 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name self_hosted_0 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.self_hosted_0.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name api_0 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.api_0.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci collect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "SELF_HOSTED_OUTCOME": "${{ needs.self_hosted_0.result }}",
+            "API_OUTCOME": "${{ needs.api_0.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-collect_0",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "tests_1": {
+      "needs": [
+        "collect_0"
+      ],
+      "if": "${{ !cancelled() && needs.collect_0.result == 'success' && needs.collect_0.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 15,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_0 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci tests"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-tests_1",
+            "path": "test-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "inspect_1": {
+      "needs": [
+        "collect_0",
+        "tests_1"
+      ],
+      "if": "${{ always() && !cancelled() && needs.collect_0.result == 'success' && needs.collect_0.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 5,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_0 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name tests_1 --destination test-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.tests_1.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci inspect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "TEST_OUTCOME": "${{ needs.tests_1.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-inspect_1",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "self_hosted_1": {
+      "needs": [
+        "inspect_1"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_1.outputs.mode == 'self_hosted' && needs.inspect_1.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_1 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci ssh-worker",
+          "env": {
+            "REVIEW_SSH_KEY": "${{ secrets.REVIEW_SSH_KEY }}",
+            "REVIEW_SSH_HOST": "${{ vars.REVIEW_SSH_HOST }}",
+            "REVIEW_SSH_USER": "${{ vars.REVIEW_SSH_USER }}",
+            "REVIEW_SSH_PORT": "${{ vars.REVIEW_SSH_PORT }}",
+            "REVIEW_SSH_KNOWN_HOSTS": "${{ vars.REVIEW_SSH_KNOWN_HOSTS }}"
+          },
+          "id": "prepare"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-self_hosted_1",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "api_1": {
+      "needs": [
+        "inspect_1"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_1.outputs.mode == 'api' && needs.inspect_1.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_1 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci prepare-worker",
+          "id": "prepare"
+        },
+        {
+          "name": "Call Codex",
+          "id": "codex",
+          "uses": "openai/codex-action@13e9c17417b29e9a276f73ec6ed7fb574137d3c3",
+          "timeout-minutes": "${{ fromJSON(steps.prepare.outputs.timeout_minutes) }}",
+          "continue-on-error": true,
+          "with": {
+            "openai-api-key": "${{ secrets.OPENAI_API_KEY }}",
+            "prompt-file": "request/prompt.md",
+            "output-file": "raw-result.json",
+            "output-schema-file": "/home/runner/review-input/policy/.review/schemas/model-output.schema.json",
+            "working-directory": "/home/runner/review-input",
+            "codex-home": "/home/runner/review-home",
+            "permission-profile": "review",
+            "safety-strategy": "drop-sudo",
+            "codex-version": "${{ steps.prepare.outputs.codex_version }}",
+            "model": "${{ steps.prepare.outputs.model }}",
+            "effort": "${{ steps.prepare.outputs.effort }}",
+            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci normalize-worker",
+          "env": {
+            "ACTION_OUTCOME": "${{ steps.codex.outcome }}"
+          },
+          "if": "${{ always() && !cancelled() }}"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-api_1",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "collect_1": {
+      "needs": [
+        "inspect_1",
+        "self_hosted_1",
+        "api_1"
+      ],
+      "if": "${{ always() && !cancelled() && needs.inspect_1.result == 'success' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 10,
+      "permissions": {
+        "contents": "write",
+        "actions": "read",
+        "pull-requests": "write"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_1 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name self_hosted_1 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.self_hosted_1.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name api_1 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.api_1.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci collect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "SELF_HOSTED_OUTCOME": "${{ needs.self_hosted_1.result }}",
+            "API_OUTCOME": "${{ needs.api_1.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-collect_1",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "tests_2": {
+      "needs": [
+        "collect_1"
+      ],
+      "if": "${{ !cancelled() && needs.collect_1.result == 'success' && needs.collect_1.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 15,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_1 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci tests"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-tests_2",
+            "path": "test-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "inspect_2": {
+      "needs": [
+        "collect_1",
+        "tests_2"
+      ],
+      "if": "${{ always() && !cancelled() && needs.collect_1.result == 'success' && needs.collect_1.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 5,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_1 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name tests_2 --destination test-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.tests_2.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci inspect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "TEST_OUTCOME": "${{ needs.tests_2.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-inspect_2",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "self_hosted_2": {
+      "needs": [
+        "inspect_2"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_2.outputs.mode == 'self_hosted' && needs.inspect_2.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_2 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci ssh-worker",
+          "env": {
+            "REVIEW_SSH_KEY": "${{ secrets.REVIEW_SSH_KEY }}",
+            "REVIEW_SSH_HOST": "${{ vars.REVIEW_SSH_HOST }}",
+            "REVIEW_SSH_USER": "${{ vars.REVIEW_SSH_USER }}",
+            "REVIEW_SSH_PORT": "${{ vars.REVIEW_SSH_PORT }}",
+            "REVIEW_SSH_KNOWN_HOSTS": "${{ vars.REVIEW_SSH_KNOWN_HOSTS }}"
+          },
+          "id": "prepare"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-self_hosted_2",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "api_2": {
+      "needs": [
+        "inspect_2"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_2.outputs.mode == 'api' && needs.inspect_2.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_2 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci prepare-worker",
+          "id": "prepare"
+        },
+        {
+          "name": "Call Codex",
+          "id": "codex",
+          "uses": "openai/codex-action@13e9c17417b29e9a276f73ec6ed7fb574137d3c3",
+          "timeout-minutes": "${{ fromJSON(steps.prepare.outputs.timeout_minutes) }}",
+          "continue-on-error": true,
+          "with": {
+            "openai-api-key": "${{ secrets.OPENAI_API_KEY }}",
+            "prompt-file": "request/prompt.md",
+            "output-file": "raw-result.json",
+            "output-schema-file": "/home/runner/review-input/policy/.review/schemas/model-output.schema.json",
+            "working-directory": "/home/runner/review-input",
+            "codex-home": "/home/runner/review-home",
+            "permission-profile": "review",
+            "safety-strategy": "drop-sudo",
+            "codex-version": "${{ steps.prepare.outputs.codex_version }}",
+            "model": "${{ steps.prepare.outputs.model }}",
+            "effort": "${{ steps.prepare.outputs.effort }}",
+            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci normalize-worker",
+          "env": {
+            "ACTION_OUTCOME": "${{ steps.codex.outcome }}"
+          },
+          "if": "${{ always() && !cancelled() }}"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-api_2",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "collect_2": {
+      "needs": [
+        "inspect_2",
+        "self_hosted_2",
+        "api_2"
+      ],
+      "if": "${{ always() && !cancelled() && needs.inspect_2.result == 'success' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 10,
+      "permissions": {
+        "contents": "write",
+        "actions": "read",
+        "pull-requests": "write"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_2 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name self_hosted_2 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.self_hosted_2.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name api_2 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.api_2.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci collect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "SELF_HOSTED_OUTCOME": "${{ needs.self_hosted_2.result }}",
+            "API_OUTCOME": "${{ needs.api_2.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-collect_2",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "tests_3": {
+      "needs": [
+        "collect_2"
+      ],
+      "if": "${{ !cancelled() && needs.collect_2.result == 'success' && needs.collect_2.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 15,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_2 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci tests"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-tests_3",
+            "path": "test-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "inspect_3": {
+      "needs": [
+        "collect_2",
+        "tests_3"
+      ],
+      "if": "${{ always() && !cancelled() && needs.collect_2.result == 'success' && needs.collect_2.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 5,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_2 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name tests_3 --destination test-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.tests_3.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci inspect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "TEST_OUTCOME": "${{ needs.tests_3.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-inspect_3",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "self_hosted_3": {
+      "needs": [
+        "inspect_3"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_3.outputs.mode == 'self_hosted' && needs.inspect_3.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_3 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci ssh-worker",
+          "env": {
+            "REVIEW_SSH_KEY": "${{ secrets.REVIEW_SSH_KEY }}",
+            "REVIEW_SSH_HOST": "${{ vars.REVIEW_SSH_HOST }}",
+            "REVIEW_SSH_USER": "${{ vars.REVIEW_SSH_USER }}",
+            "REVIEW_SSH_PORT": "${{ vars.REVIEW_SSH_PORT }}",
+            "REVIEW_SSH_KNOWN_HOSTS": "${{ vars.REVIEW_SSH_KNOWN_HOSTS }}"
+          },
+          "id": "prepare"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-self_hosted_3",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "api_3": {
+      "needs": [
+        "inspect_3"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_3.outputs.mode == 'api' && needs.inspect_3.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_3 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci prepare-worker",
+          "id": "prepare"
+        },
+        {
+          "name": "Call Codex",
+          "id": "codex",
+          "uses": "openai/codex-action@13e9c17417b29e9a276f73ec6ed7fb574137d3c3",
+          "timeout-minutes": "${{ fromJSON(steps.prepare.outputs.timeout_minutes) }}",
+          "continue-on-error": true,
+          "with": {
+            "openai-api-key": "${{ secrets.OPENAI_API_KEY }}",
+            "prompt-file": "request/prompt.md",
+            "output-file": "raw-result.json",
+            "output-schema-file": "/home/runner/review-input/policy/.review/schemas/model-output.schema.json",
+            "working-directory": "/home/runner/review-input",
+            "codex-home": "/home/runner/review-home",
+            "permission-profile": "review",
+            "safety-strategy": "drop-sudo",
+            "codex-version": "${{ steps.prepare.outputs.codex_version }}",
+            "model": "${{ steps.prepare.outputs.model }}",
+            "effort": "${{ steps.prepare.outputs.effort }}",
+            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci normalize-worker",
+          "env": {
+            "ACTION_OUTCOME": "${{ steps.codex.outcome }}"
+          },
+          "if": "${{ always() && !cancelled() }}"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-api_3",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "collect_3": {
+      "needs": [
+        "inspect_3",
+        "self_hosted_3",
+        "api_3"
+      ],
+      "if": "${{ always() && !cancelled() && needs.inspect_3.result == 'success' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 10,
+      "permissions": {
+        "contents": "write",
+        "actions": "read",
+        "pull-requests": "write"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_3 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name self_hosted_3 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.self_hosted_3.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name api_3 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.api_3.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci collect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "SELF_HOSTED_OUTCOME": "${{ needs.self_hosted_3.result }}",
+            "API_OUTCOME": "${{ needs.api_3.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-collect_3",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "tests_4": {
+      "needs": [
+        "collect_3"
+      ],
+      "if": "${{ !cancelled() && needs.collect_3.result == 'success' && needs.collect_3.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 15,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_3 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci tests"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-tests_4",
+            "path": "test-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "inspect_4": {
+      "needs": [
+        "collect_3",
+        "tests_4"
+      ],
+      "if": "${{ always() && !cancelled() && needs.collect_3.result == 'success' && needs.collect_3.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 5,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_3 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name tests_4 --destination test-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.tests_4.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci inspect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "TEST_OUTCOME": "${{ needs.tests_4.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-inspect_4",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "self_hosted_4": {
+      "needs": [
+        "inspect_4"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_4.outputs.mode == 'self_hosted' && needs.inspect_4.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_4 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci ssh-worker",
+          "env": {
+            "REVIEW_SSH_KEY": "${{ secrets.REVIEW_SSH_KEY }}",
+            "REVIEW_SSH_HOST": "${{ vars.REVIEW_SSH_HOST }}",
+            "REVIEW_SSH_USER": "${{ vars.REVIEW_SSH_USER }}",
+            "REVIEW_SSH_PORT": "${{ vars.REVIEW_SSH_PORT }}",
+            "REVIEW_SSH_KNOWN_HOSTS": "${{ vars.REVIEW_SSH_KNOWN_HOSTS }}"
+          },
+          "id": "prepare"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-self_hosted_4",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "api_4": {
+      "needs": [
+        "inspect_4"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_4.outputs.mode == 'api' && needs.inspect_4.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_4 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci prepare-worker",
+          "id": "prepare"
+        },
+        {
+          "name": "Call Codex",
+          "id": "codex",
+          "uses": "openai/codex-action@13e9c17417b29e9a276f73ec6ed7fb574137d3c3",
+          "timeout-minutes": "${{ fromJSON(steps.prepare.outputs.timeout_minutes) }}",
+          "continue-on-error": true,
+          "with": {
+            "openai-api-key": "${{ secrets.OPENAI_API_KEY }}",
+            "prompt-file": "request/prompt.md",
+            "output-file": "raw-result.json",
+            "output-schema-file": "/home/runner/review-input/policy/.review/schemas/model-output.schema.json",
+            "working-directory": "/home/runner/review-input",
+            "codex-home": "/home/runner/review-home",
+            "permission-profile": "review",
+            "safety-strategy": "drop-sudo",
+            "codex-version": "${{ steps.prepare.outputs.codex_version }}",
+            "model": "${{ steps.prepare.outputs.model }}",
+            "effort": "${{ steps.prepare.outputs.effort }}",
+            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci normalize-worker",
+          "env": {
+            "ACTION_OUTCOME": "${{ steps.codex.outcome }}"
+          },
+          "if": "${{ always() && !cancelled() }}"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-api_4",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "collect_4": {
+      "needs": [
+        "inspect_4",
+        "self_hosted_4",
+        "api_4"
+      ],
+      "if": "${{ always() && !cancelled() && needs.inspect_4.result == 'success' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 10,
+      "permissions": {
+        "contents": "write",
+        "actions": "read",
+        "pull-requests": "write"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_4 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name self_hosted_4 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.self_hosted_4.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name api_4 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.api_4.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci collect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "SELF_HOSTED_OUTCOME": "${{ needs.self_hosted_4.result }}",
+            "API_OUTCOME": "${{ needs.api_4.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-collect_4",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "tests_5": {
+      "needs": [
+        "collect_4"
+      ],
+      "if": "${{ !cancelled() && needs.collect_4.result == 'success' && needs.collect_4.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 15,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_4 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci tests"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-tests_5",
+            "path": "test-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "inspect_5": {
+      "needs": [
+        "collect_4",
+        "tests_5"
+      ],
+      "if": "${{ always() && !cancelled() && needs.collect_4.result == 'success' && needs.collect_4.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 5,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_4 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name tests_5 --destination test-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.tests_5.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci inspect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "TEST_OUTCOME": "${{ needs.tests_5.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-inspect_5",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "self_hosted_5": {
+      "needs": [
+        "inspect_5"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_5.outputs.mode == 'self_hosted' && needs.inspect_5.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_5 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci ssh-worker",
+          "env": {
+            "REVIEW_SSH_KEY": "${{ secrets.REVIEW_SSH_KEY }}",
+            "REVIEW_SSH_HOST": "${{ vars.REVIEW_SSH_HOST }}",
+            "REVIEW_SSH_USER": "${{ vars.REVIEW_SSH_USER }}",
+            "REVIEW_SSH_PORT": "${{ vars.REVIEW_SSH_PORT }}",
+            "REVIEW_SSH_KNOWN_HOSTS": "${{ vars.REVIEW_SSH_KNOWN_HOSTS }}"
+          },
+          "id": "prepare"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-self_hosted_5",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "api_5": {
+      "needs": [
+        "inspect_5"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_5.outputs.mode == 'api' && needs.inspect_5.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_5 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci prepare-worker",
+          "id": "prepare"
+        },
+        {
+          "name": "Call Codex",
+          "id": "codex",
+          "uses": "openai/codex-action@13e9c17417b29e9a276f73ec6ed7fb574137d3c3",
+          "timeout-minutes": "${{ fromJSON(steps.prepare.outputs.timeout_minutes) }}",
+          "continue-on-error": true,
+          "with": {
+            "openai-api-key": "${{ secrets.OPENAI_API_KEY }}",
+            "prompt-file": "request/prompt.md",
+            "output-file": "raw-result.json",
+            "output-schema-file": "/home/runner/review-input/policy/.review/schemas/model-output.schema.json",
+            "working-directory": "/home/runner/review-input",
+            "codex-home": "/home/runner/review-home",
+            "permission-profile": "review",
+            "safety-strategy": "drop-sudo",
+            "codex-version": "${{ steps.prepare.outputs.codex_version }}",
+            "model": "${{ steps.prepare.outputs.model }}",
+            "effort": "${{ steps.prepare.outputs.effort }}",
+            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci normalize-worker",
+          "env": {
+            "ACTION_OUTCOME": "${{ steps.codex.outcome }}"
+          },
+          "if": "${{ always() && !cancelled() }}"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-api_5",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "collect_5": {
+      "needs": [
+        "inspect_5",
+        "self_hosted_5",
+        "api_5"
+      ],
+      "if": "${{ always() && !cancelled() && needs.inspect_5.result == 'success' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 10,
+      "permissions": {
+        "contents": "write",
+        "actions": "read",
+        "pull-requests": "write"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_5 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name self_hosted_5 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.self_hosted_5.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name api_5 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.api_5.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci collect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "SELF_HOSTED_OUTCOME": "${{ needs.self_hosted_5.result }}",
+            "API_OUTCOME": "${{ needs.api_5.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-collect_5",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "tests_6": {
+      "needs": [
+        "collect_5"
+      ],
+      "if": "${{ !cancelled() && needs.collect_5.result == 'success' && needs.collect_5.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 15,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_5 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci tests"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-tests_6",
+            "path": "test-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "inspect_6": {
+      "needs": [
+        "collect_5",
+        "tests_6"
+      ],
+      "if": "${{ always() && !cancelled() && needs.collect_5.result == 'success' && needs.collect_5.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 5,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_5 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name tests_6 --destination test-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.tests_6.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci inspect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "TEST_OUTCOME": "${{ needs.tests_6.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-inspect_6",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "self_hosted_6": {
+      "needs": [
+        "inspect_6"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_6.outputs.mode == 'self_hosted' && needs.inspect_6.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_6 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci ssh-worker",
+          "env": {
+            "REVIEW_SSH_KEY": "${{ secrets.REVIEW_SSH_KEY }}",
+            "REVIEW_SSH_HOST": "${{ vars.REVIEW_SSH_HOST }}",
+            "REVIEW_SSH_USER": "${{ vars.REVIEW_SSH_USER }}",
+            "REVIEW_SSH_PORT": "${{ vars.REVIEW_SSH_PORT }}",
+            "REVIEW_SSH_KNOWN_HOSTS": "${{ vars.REVIEW_SSH_KNOWN_HOSTS }}"
+          },
+          "id": "prepare"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-self_hosted_6",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "api_6": {
+      "needs": [
+        "inspect_6"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_6.outputs.mode == 'api' && needs.inspect_6.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_6 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci prepare-worker",
+          "id": "prepare"
+        },
+        {
+          "name": "Call Codex",
+          "id": "codex",
+          "uses": "openai/codex-action@13e9c17417b29e9a276f73ec6ed7fb574137d3c3",
+          "timeout-minutes": "${{ fromJSON(steps.prepare.outputs.timeout_minutes) }}",
+          "continue-on-error": true,
+          "with": {
+            "openai-api-key": "${{ secrets.OPENAI_API_KEY }}",
+            "prompt-file": "request/prompt.md",
+            "output-file": "raw-result.json",
+            "output-schema-file": "/home/runner/review-input/policy/.review/schemas/model-output.schema.json",
+            "working-directory": "/home/runner/review-input",
+            "codex-home": "/home/runner/review-home",
+            "permission-profile": "review",
+            "safety-strategy": "drop-sudo",
+            "codex-version": "${{ steps.prepare.outputs.codex_version }}",
+            "model": "${{ steps.prepare.outputs.model }}",
+            "effort": "${{ steps.prepare.outputs.effort }}",
+            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci normalize-worker",
+          "env": {
+            "ACTION_OUTCOME": "${{ steps.codex.outcome }}"
+          },
+          "if": "${{ always() && !cancelled() }}"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-api_6",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "collect_6": {
+      "needs": [
+        "inspect_6",
+        "self_hosted_6",
+        "api_6"
+      ],
+      "if": "${{ always() && !cancelled() && needs.inspect_6.result == 'success' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 10,
+      "permissions": {
+        "contents": "write",
+        "actions": "read",
+        "pull-requests": "write"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_6 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name self_hosted_6 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.self_hosted_6.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name api_6 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.api_6.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci collect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "SELF_HOSTED_OUTCOME": "${{ needs.self_hosted_6.result }}",
+            "API_OUTCOME": "${{ needs.api_6.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-collect_6",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "tests_7": {
+      "needs": [
+        "collect_6"
+      ],
+      "if": "${{ !cancelled() && needs.collect_6.result == 'success' && needs.collect_6.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 15,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_6 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci tests"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-tests_7",
+            "path": "test-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "inspect_7": {
+      "needs": [
+        "collect_6",
+        "tests_7"
+      ],
+      "if": "${{ always() && !cancelled() && needs.collect_6.result == 'success' && needs.collect_6.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 5,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_6 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name tests_7 --destination test-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.tests_7.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci inspect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "TEST_OUTCOME": "${{ needs.tests_7.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-inspect_7",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "self_hosted_7": {
+      "needs": [
+        "inspect_7"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_7.outputs.mode == 'self_hosted' && needs.inspect_7.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_7 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci ssh-worker",
+          "env": {
+            "REVIEW_SSH_KEY": "${{ secrets.REVIEW_SSH_KEY }}",
+            "REVIEW_SSH_HOST": "${{ vars.REVIEW_SSH_HOST }}",
+            "REVIEW_SSH_USER": "${{ vars.REVIEW_SSH_USER }}",
+            "REVIEW_SSH_PORT": "${{ vars.REVIEW_SSH_PORT }}",
+            "REVIEW_SSH_KNOWN_HOSTS": "${{ vars.REVIEW_SSH_KNOWN_HOSTS }}"
+          },
+          "id": "prepare"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-self_hosted_7",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "api_7": {
+      "needs": [
+        "inspect_7"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_7.outputs.mode == 'api' && needs.inspect_7.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_7 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci prepare-worker",
+          "id": "prepare"
+        },
+        {
+          "name": "Call Codex",
+          "id": "codex",
+          "uses": "openai/codex-action@13e9c17417b29e9a276f73ec6ed7fb574137d3c3",
+          "timeout-minutes": "${{ fromJSON(steps.prepare.outputs.timeout_minutes) }}",
+          "continue-on-error": true,
+          "with": {
+            "openai-api-key": "${{ secrets.OPENAI_API_KEY }}",
+            "prompt-file": "request/prompt.md",
+            "output-file": "raw-result.json",
+            "output-schema-file": "/home/runner/review-input/policy/.review/schemas/model-output.schema.json",
+            "working-directory": "/home/runner/review-input",
+            "codex-home": "/home/runner/review-home",
+            "permission-profile": "review",
+            "safety-strategy": "drop-sudo",
+            "codex-version": "${{ steps.prepare.outputs.codex_version }}",
+            "model": "${{ steps.prepare.outputs.model }}",
+            "effort": "${{ steps.prepare.outputs.effort }}",
+            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci normalize-worker",
+          "env": {
+            "ACTION_OUTCOME": "${{ steps.codex.outcome }}"
+          },
+          "if": "${{ always() && !cancelled() }}"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-api_7",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "collect_7": {
+      "needs": [
+        "inspect_7",
+        "self_hosted_7",
+        "api_7"
+      ],
+      "if": "${{ always() && !cancelled() && needs.inspect_7.result == 'success' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 10,
+      "permissions": {
+        "contents": "write",
+        "actions": "read",
+        "pull-requests": "write"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_7 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name self_hosted_7 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.self_hosted_7.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name api_7 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.api_7.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci collect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "SELF_HOSTED_OUTCOME": "${{ needs.self_hosted_7.result }}",
+            "API_OUTCOME": "${{ needs.api_7.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-collect_7",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "tests_8": {
+      "needs": [
+        "collect_7"
+      ],
+      "if": "${{ !cancelled() && needs.collect_7.result == 'success' && needs.collect_7.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 15,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_7 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci tests"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-tests_8",
+            "path": "test-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "inspect_8": {
+      "needs": [
+        "collect_7",
+        "tests_8"
+      ],
+      "if": "${{ always() && !cancelled() && needs.collect_7.result == 'success' && needs.collect_7.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 5,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_7 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name tests_8 --destination test-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.tests_8.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci inspect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "TEST_OUTCOME": "${{ needs.tests_8.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-inspect_8",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "self_hosted_8": {
+      "needs": [
+        "inspect_8"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_8.outputs.mode == 'self_hosted' && needs.inspect_8.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_8 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci ssh-worker",
+          "env": {
+            "REVIEW_SSH_KEY": "${{ secrets.REVIEW_SSH_KEY }}",
+            "REVIEW_SSH_HOST": "${{ vars.REVIEW_SSH_HOST }}",
+            "REVIEW_SSH_USER": "${{ vars.REVIEW_SSH_USER }}",
+            "REVIEW_SSH_PORT": "${{ vars.REVIEW_SSH_PORT }}",
+            "REVIEW_SSH_KNOWN_HOSTS": "${{ vars.REVIEW_SSH_KNOWN_HOSTS }}"
+          },
+          "id": "prepare"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-self_hosted_8",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "api_8": {
+      "needs": [
+        "inspect_8"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_8.outputs.mode == 'api' && needs.inspect_8.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_8 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci prepare-worker",
+          "id": "prepare"
+        },
+        {
+          "name": "Call Codex",
+          "id": "codex",
+          "uses": "openai/codex-action@13e9c17417b29e9a276f73ec6ed7fb574137d3c3",
+          "timeout-minutes": "${{ fromJSON(steps.prepare.outputs.timeout_minutes) }}",
+          "continue-on-error": true,
+          "with": {
+            "openai-api-key": "${{ secrets.OPENAI_API_KEY }}",
+            "prompt-file": "request/prompt.md",
+            "output-file": "raw-result.json",
+            "output-schema-file": "/home/runner/review-input/policy/.review/schemas/model-output.schema.json",
+            "working-directory": "/home/runner/review-input",
+            "codex-home": "/home/runner/review-home",
+            "permission-profile": "review",
+            "safety-strategy": "drop-sudo",
+            "codex-version": "${{ steps.prepare.outputs.codex_version }}",
+            "model": "${{ steps.prepare.outputs.model }}",
+            "effort": "${{ steps.prepare.outputs.effort }}",
+            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci normalize-worker",
+          "env": {
+            "ACTION_OUTCOME": "${{ steps.codex.outcome }}"
+          },
+          "if": "${{ always() && !cancelled() }}"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-api_8",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "collect_8": {
+      "needs": [
+        "inspect_8",
+        "self_hosted_8",
+        "api_8"
+      ],
+      "if": "${{ always() && !cancelled() && needs.inspect_8.result == 'success' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 10,
+      "permissions": {
+        "contents": "write",
+        "actions": "read",
+        "pull-requests": "write"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_8 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name self_hosted_8 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.self_hosted_8.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name api_8 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.api_8.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci collect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "SELF_HOSTED_OUTCOME": "${{ needs.self_hosted_8.result }}",
+            "API_OUTCOME": "${{ needs.api_8.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-collect_8",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "tests_9": {
+      "needs": [
+        "collect_8"
+      ],
+      "if": "${{ !cancelled() && needs.collect_8.result == 'success' && needs.collect_8.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 15,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_8 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci tests"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-tests_9",
+            "path": "test-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "inspect_9": {
+      "needs": [
+        "collect_8",
+        "tests_9"
+      ],
+      "if": "${{ always() && !cancelled() && needs.collect_8.result == 'success' && needs.collect_8.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 5,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_8 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name tests_9 --destination test-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.tests_9.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci inspect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "TEST_OUTCOME": "${{ needs.tests_9.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-inspect_9",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "self_hosted_9": {
+      "needs": [
+        "inspect_9"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_9.outputs.mode == 'self_hosted' && needs.inspect_9.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_9 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci ssh-worker",
+          "env": {
+            "REVIEW_SSH_KEY": "${{ secrets.REVIEW_SSH_KEY }}",
+            "REVIEW_SSH_HOST": "${{ vars.REVIEW_SSH_HOST }}",
+            "REVIEW_SSH_USER": "${{ vars.REVIEW_SSH_USER }}",
+            "REVIEW_SSH_PORT": "${{ vars.REVIEW_SSH_PORT }}",
+            "REVIEW_SSH_KNOWN_HOSTS": "${{ vars.REVIEW_SSH_KNOWN_HOSTS }}"
+          },
+          "id": "prepare"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-self_hosted_9",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "api_9": {
+      "needs": [
+        "inspect_9"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_9.outputs.mode == 'api' && needs.inspect_9.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_9 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci prepare-worker",
+          "id": "prepare"
+        },
+        {
+          "name": "Call Codex",
+          "id": "codex",
+          "uses": "openai/codex-action@13e9c17417b29e9a276f73ec6ed7fb574137d3c3",
+          "timeout-minutes": "${{ fromJSON(steps.prepare.outputs.timeout_minutes) }}",
+          "continue-on-error": true,
+          "with": {
+            "openai-api-key": "${{ secrets.OPENAI_API_KEY }}",
+            "prompt-file": "request/prompt.md",
+            "output-file": "raw-result.json",
+            "output-schema-file": "/home/runner/review-input/policy/.review/schemas/model-output.schema.json",
+            "working-directory": "/home/runner/review-input",
+            "codex-home": "/home/runner/review-home",
+            "permission-profile": "review",
+            "safety-strategy": "drop-sudo",
+            "codex-version": "${{ steps.prepare.outputs.codex_version }}",
+            "model": "${{ steps.prepare.outputs.model }}",
+            "effort": "${{ steps.prepare.outputs.effort }}",
+            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci normalize-worker",
+          "env": {
+            "ACTION_OUTCOME": "${{ steps.codex.outcome }}"
+          },
+          "if": "${{ always() && !cancelled() }}"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-api_9",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "collect_9": {
+      "needs": [
+        "inspect_9",
+        "self_hosted_9",
+        "api_9"
+      ],
+      "if": "${{ always() && !cancelled() && needs.inspect_9.result == 'success' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 10,
+      "permissions": {
+        "contents": "write",
+        "actions": "read",
+        "pull-requests": "write"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_9 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name self_hosted_9 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.self_hosted_9.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name api_9 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.api_9.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci collect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "SELF_HOSTED_OUTCOME": "${{ needs.self_hosted_9.result }}",
+            "API_OUTCOME": "${{ needs.api_9.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-collect_9",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "tests_10": {
+      "needs": [
+        "collect_9"
+      ],
+      "if": "${{ !cancelled() && needs.collect_9.result == 'success' && needs.collect_9.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 15,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_9 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci tests"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-tests_10",
+            "path": "test-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "inspect_10": {
+      "needs": [
+        "collect_9",
+        "tests_10"
+      ],
+      "if": "${{ always() && !cancelled() && needs.collect_9.result == 'success' && needs.collect_9.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 5,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_9 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name tests_10 --destination test-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.tests_10.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci inspect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "TEST_OUTCOME": "${{ needs.tests_10.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-inspect_10",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "self_hosted_10": {
+      "needs": [
+        "inspect_10"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_10.outputs.mode == 'self_hosted' && needs.inspect_10.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_10 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci ssh-worker",
+          "env": {
+            "REVIEW_SSH_KEY": "${{ secrets.REVIEW_SSH_KEY }}",
+            "REVIEW_SSH_HOST": "${{ vars.REVIEW_SSH_HOST }}",
+            "REVIEW_SSH_USER": "${{ vars.REVIEW_SSH_USER }}",
+            "REVIEW_SSH_PORT": "${{ vars.REVIEW_SSH_PORT }}",
+            "REVIEW_SSH_KNOWN_HOSTS": "${{ vars.REVIEW_SSH_KNOWN_HOSTS }}"
+          },
+          "id": "prepare"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-self_hosted_10",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "api_10": {
+      "needs": [
+        "inspect_10"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_10.outputs.mode == 'api' && needs.inspect_10.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_10 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci prepare-worker",
+          "id": "prepare"
+        },
+        {
+          "name": "Call Codex",
+          "id": "codex",
+          "uses": "openai/codex-action@13e9c17417b29e9a276f73ec6ed7fb574137d3c3",
+          "timeout-minutes": "${{ fromJSON(steps.prepare.outputs.timeout_minutes) }}",
+          "continue-on-error": true,
+          "with": {
+            "openai-api-key": "${{ secrets.OPENAI_API_KEY }}",
+            "prompt-file": "request/prompt.md",
+            "output-file": "raw-result.json",
+            "output-schema-file": "/home/runner/review-input/policy/.review/schemas/model-output.schema.json",
+            "working-directory": "/home/runner/review-input",
+            "codex-home": "/home/runner/review-home",
+            "permission-profile": "review",
+            "safety-strategy": "drop-sudo",
+            "codex-version": "${{ steps.prepare.outputs.codex_version }}",
+            "model": "${{ steps.prepare.outputs.model }}",
+            "effort": "${{ steps.prepare.outputs.effort }}",
+            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci normalize-worker",
+          "env": {
+            "ACTION_OUTCOME": "${{ steps.codex.outcome }}"
+          },
+          "if": "${{ always() && !cancelled() }}"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-api_10",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "collect_10": {
+      "needs": [
+        "inspect_10",
+        "self_hosted_10",
+        "api_10"
+      ],
+      "if": "${{ always() && !cancelled() && needs.inspect_10.result == 'success' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 10,
+      "permissions": {
+        "contents": "write",
+        "actions": "read",
+        "pull-requests": "write"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_10 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name self_hosted_10 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.self_hosted_10.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name api_10 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.api_10.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci collect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "SELF_HOSTED_OUTCOME": "${{ needs.self_hosted_10.result }}",
+            "API_OUTCOME": "${{ needs.api_10.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-collect_10",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "tests_11": {
+      "needs": [
+        "collect_10"
+      ],
+      "if": "${{ !cancelled() && needs.collect_10.result == 'success' && needs.collect_10.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 15,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_10 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci tests"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-tests_11",
+            "path": "test-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "inspect_11": {
+      "needs": [
+        "collect_10",
+        "tests_11"
+      ],
+      "if": "${{ always() && !cancelled() && needs.collect_10.result == 'success' && needs.collect_10.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 5,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_10 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name tests_11 --destination test-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.tests_11.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci inspect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "TEST_OUTCOME": "${{ needs.tests_11.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-inspect_11",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "self_hosted_11": {
+      "needs": [
+        "inspect_11"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_11.outputs.mode == 'self_hosted' && needs.inspect_11.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_11 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci ssh-worker",
+          "env": {
+            "REVIEW_SSH_KEY": "${{ secrets.REVIEW_SSH_KEY }}",
+            "REVIEW_SSH_HOST": "${{ vars.REVIEW_SSH_HOST }}",
+            "REVIEW_SSH_USER": "${{ vars.REVIEW_SSH_USER }}",
+            "REVIEW_SSH_PORT": "${{ vars.REVIEW_SSH_PORT }}",
+            "REVIEW_SSH_KNOWN_HOSTS": "${{ vars.REVIEW_SSH_KNOWN_HOSTS }}"
+          },
+          "id": "prepare"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-self_hosted_11",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "api_11": {
+      "needs": [
+        "inspect_11"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_11.outputs.mode == 'api' && needs.inspect_11.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_11 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci prepare-worker",
+          "id": "prepare"
+        },
+        {
+          "name": "Call Codex",
+          "id": "codex",
+          "uses": "openai/codex-action@13e9c17417b29e9a276f73ec6ed7fb574137d3c3",
+          "timeout-minutes": "${{ fromJSON(steps.prepare.outputs.timeout_minutes) }}",
+          "continue-on-error": true,
+          "with": {
+            "openai-api-key": "${{ secrets.OPENAI_API_KEY }}",
+            "prompt-file": "request/prompt.md",
+            "output-file": "raw-result.json",
+            "output-schema-file": "/home/runner/review-input/policy/.review/schemas/model-output.schema.json",
+            "working-directory": "/home/runner/review-input",
+            "codex-home": "/home/runner/review-home",
+            "permission-profile": "review",
+            "safety-strategy": "drop-sudo",
+            "codex-version": "${{ steps.prepare.outputs.codex_version }}",
+            "model": "${{ steps.prepare.outputs.model }}",
+            "effort": "${{ steps.prepare.outputs.effort }}",
+            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci normalize-worker",
+          "env": {
+            "ACTION_OUTCOME": "${{ steps.codex.outcome }}"
+          },
+          "if": "${{ always() && !cancelled() }}"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-api_11",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "collect_11": {
+      "needs": [
+        "inspect_11",
+        "self_hosted_11",
+        "api_11"
+      ],
+      "if": "${{ always() && !cancelled() && needs.inspect_11.result == 'success' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 10,
+      "permissions": {
+        "contents": "write",
+        "actions": "read",
+        "pull-requests": "write"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_11 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name self_hosted_11 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.self_hosted_11.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name api_11 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.api_11.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci collect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "SELF_HOSTED_OUTCOME": "${{ needs.self_hosted_11.result }}",
+            "API_OUTCOME": "${{ needs.api_11.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-collect_11",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "tests_12": {
+      "needs": [
+        "collect_11"
+      ],
+      "if": "${{ !cancelled() && needs.collect_11.result == 'success' && needs.collect_11.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 15,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_11 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci tests"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-tests_12",
+            "path": "test-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "inspect_12": {
+      "needs": [
+        "collect_11",
+        "tests_12"
+      ],
+      "if": "${{ always() && !cancelled() && needs.collect_11.result == 'success' && needs.collect_11.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 5,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_11 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name tests_12 --destination test-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.tests_12.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci inspect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "TEST_OUTCOME": "${{ needs.tests_12.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-inspect_12",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "self_hosted_12": {
+      "needs": [
+        "inspect_12"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_12.outputs.mode == 'self_hosted' && needs.inspect_12.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_12 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci ssh-worker",
+          "env": {
+            "REVIEW_SSH_KEY": "${{ secrets.REVIEW_SSH_KEY }}",
+            "REVIEW_SSH_HOST": "${{ vars.REVIEW_SSH_HOST }}",
+            "REVIEW_SSH_USER": "${{ vars.REVIEW_SSH_USER }}",
+            "REVIEW_SSH_PORT": "${{ vars.REVIEW_SSH_PORT }}",
+            "REVIEW_SSH_KNOWN_HOSTS": "${{ vars.REVIEW_SSH_KNOWN_HOSTS }}"
+          },
+          "id": "prepare"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-self_hosted_12",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "api_12": {
+      "needs": [
+        "inspect_12"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_12.outputs.mode == 'api' && needs.inspect_12.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_12 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci prepare-worker",
+          "id": "prepare"
+        },
+        {
+          "name": "Call Codex",
+          "id": "codex",
+          "uses": "openai/codex-action@13e9c17417b29e9a276f73ec6ed7fb574137d3c3",
+          "timeout-minutes": "${{ fromJSON(steps.prepare.outputs.timeout_minutes) }}",
+          "continue-on-error": true,
+          "with": {
+            "openai-api-key": "${{ secrets.OPENAI_API_KEY }}",
+            "prompt-file": "request/prompt.md",
+            "output-file": "raw-result.json",
+            "output-schema-file": "/home/runner/review-input/policy/.review/schemas/model-output.schema.json",
+            "working-directory": "/home/runner/review-input",
+            "codex-home": "/home/runner/review-home",
+            "permission-profile": "review",
+            "safety-strategy": "drop-sudo",
+            "codex-version": "${{ steps.prepare.outputs.codex_version }}",
+            "model": "${{ steps.prepare.outputs.model }}",
+            "effort": "${{ steps.prepare.outputs.effort }}",
+            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci normalize-worker",
+          "env": {
+            "ACTION_OUTCOME": "${{ steps.codex.outcome }}"
+          },
+          "if": "${{ always() && !cancelled() }}"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-api_12",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "collect_12": {
+      "needs": [
+        "inspect_12",
+        "self_hosted_12",
+        "api_12"
+      ],
+      "if": "${{ always() && !cancelled() && needs.inspect_12.result == 'success' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 10,
+      "permissions": {
+        "contents": "write",
+        "actions": "read",
+        "pull-requests": "write"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_12 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name self_hosted_12 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.self_hosted_12.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name api_12 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.api_12.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci collect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "SELF_HOSTED_OUTCOME": "${{ needs.self_hosted_12.result }}",
+            "API_OUTCOME": "${{ needs.api_12.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-collect_12",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "tests_13": {
+      "needs": [
+        "collect_12"
+      ],
+      "if": "${{ !cancelled() && needs.collect_12.result == 'success' && needs.collect_12.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 15,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_12 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci tests"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-tests_13",
+            "path": "test-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "inspect_13": {
+      "needs": [
+        "collect_12",
+        "tests_13"
+      ],
+      "if": "${{ always() && !cancelled() && needs.collect_12.result == 'success' && needs.collect_12.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 5,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_12 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name tests_13 --destination test-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.tests_13.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci inspect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "TEST_OUTCOME": "${{ needs.tests_13.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-inspect_13",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "self_hosted_13": {
+      "needs": [
+        "inspect_13"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_13.outputs.mode == 'self_hosted' && needs.inspect_13.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_13 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci ssh-worker",
+          "env": {
+            "REVIEW_SSH_KEY": "${{ secrets.REVIEW_SSH_KEY }}",
+            "REVIEW_SSH_HOST": "${{ vars.REVIEW_SSH_HOST }}",
+            "REVIEW_SSH_USER": "${{ vars.REVIEW_SSH_USER }}",
+            "REVIEW_SSH_PORT": "${{ vars.REVIEW_SSH_PORT }}",
+            "REVIEW_SSH_KNOWN_HOSTS": "${{ vars.REVIEW_SSH_KNOWN_HOSTS }}"
+          },
+          "id": "prepare"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-self_hosted_13",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "api_13": {
+      "needs": [
+        "inspect_13"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_13.outputs.mode == 'api' && needs.inspect_13.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_13 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci prepare-worker",
+          "id": "prepare"
+        },
+        {
+          "name": "Call Codex",
+          "id": "codex",
+          "uses": "openai/codex-action@13e9c17417b29e9a276f73ec6ed7fb574137d3c3",
+          "timeout-minutes": "${{ fromJSON(steps.prepare.outputs.timeout_minutes) }}",
+          "continue-on-error": true,
+          "with": {
+            "openai-api-key": "${{ secrets.OPENAI_API_KEY }}",
+            "prompt-file": "request/prompt.md",
+            "output-file": "raw-result.json",
+            "output-schema-file": "/home/runner/review-input/policy/.review/schemas/model-output.schema.json",
+            "working-directory": "/home/runner/review-input",
+            "codex-home": "/home/runner/review-home",
+            "permission-profile": "review",
+            "safety-strategy": "drop-sudo",
+            "codex-version": "${{ steps.prepare.outputs.codex_version }}",
+            "model": "${{ steps.prepare.outputs.model }}",
+            "effort": "${{ steps.prepare.outputs.effort }}",
+            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci normalize-worker",
+          "env": {
+            "ACTION_OUTCOME": "${{ steps.codex.outcome }}"
+          },
+          "if": "${{ always() && !cancelled() }}"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-api_13",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "collect_13": {
+      "needs": [
+        "inspect_13",
+        "self_hosted_13",
+        "api_13"
+      ],
+      "if": "${{ always() && !cancelled() && needs.inspect_13.result == 'success' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 10,
+      "permissions": {
+        "contents": "write",
+        "actions": "read",
+        "pull-requests": "write"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_13 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name self_hosted_13 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.self_hosted_13.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name api_13 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.api_13.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci collect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "SELF_HOSTED_OUTCOME": "${{ needs.self_hosted_13.result }}",
+            "API_OUTCOME": "${{ needs.api_13.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-collect_13",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "tests_14": {
+      "needs": [
+        "collect_13"
+      ],
+      "if": "${{ !cancelled() && needs.collect_13.result == 'success' && needs.collect_13.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 15,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_13 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci tests"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-tests_14",
+            "path": "test-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "inspect_14": {
+      "needs": [
+        "collect_13",
+        "tests_14"
+      ],
+      "if": "${{ always() && !cancelled() && needs.collect_13.result == 'success' && needs.collect_13.outputs.terminal != 'true' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 5,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name collect_13 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name tests_14 --destination test-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.tests_14.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci inspect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "TEST_OUTCOME": "${{ needs.tests_14.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-inspect_14",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "self_hosted_14": {
+      "needs": [
+        "inspect_14"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_14.outputs.mode == 'self_hosted' && needs.inspect_14.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_14 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci ssh-worker",
+          "env": {
+            "REVIEW_SSH_KEY": "${{ secrets.REVIEW_SSH_KEY }}",
+            "REVIEW_SSH_HOST": "${{ vars.REVIEW_SSH_HOST }}",
+            "REVIEW_SSH_USER": "${{ vars.REVIEW_SSH_USER }}",
+            "REVIEW_SSH_PORT": "${{ vars.REVIEW_SSH_PORT }}",
+            "REVIEW_SSH_KNOWN_HOSTS": "${{ vars.REVIEW_SSH_KNOWN_HOSTS }}"
+          },
+          "id": "prepare"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-self_hosted_14",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "api_14": {
+      "needs": [
+        "inspect_14"
+      ],
+      "if": "${{ !cancelled() && needs.inspect_14.outputs.mode == 'api' && needs.inspect_14.outputs.role != '' }}",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_14 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci prepare-worker",
+          "id": "prepare"
+        },
+        {
+          "name": "Call Codex",
+          "id": "codex",
+          "uses": "openai/codex-action@13e9c17417b29e9a276f73ec6ed7fb574137d3c3",
+          "timeout-minutes": "${{ fromJSON(steps.prepare.outputs.timeout_minutes) }}",
+          "continue-on-error": true,
+          "with": {
+            "openai-api-key": "${{ secrets.OPENAI_API_KEY }}",
+            "prompt-file": "request/prompt.md",
+            "output-file": "raw-result.json",
+            "output-schema-file": "/home/runner/review-input/policy/.review/schemas/model-output.schema.json",
+            "working-directory": "/home/runner/review-input",
+            "codex-home": "/home/runner/review-home",
+            "permission-profile": "review",
+            "safety-strategy": "drop-sudo",
+            "codex-version": "${{ steps.prepare.outputs.codex_version }}",
+            "model": "${{ steps.prepare.outputs.model }}",
+            "effort": "${{ steps.prepare.outputs.effort }}",
+            "codex-args": "[\"--ephemeral\", \"--skip-git-repo-check\"]"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci normalize-worker",
+          "env": {
+            "ACTION_OUTCOME": "${{ steps.codex.outcome }}"
+          },
+          "if": "${{ always() && !cancelled() }}"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-api_14",
+            "path": "model-result.json",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "collect_14": {
+      "needs": [
+        "inspect_14",
+        "self_hosted_14",
+        "api_14"
+      ],
+      "if": "${{ always() && !cancelled() && needs.inspect_14.result == 'success' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 10,
+      "permissions": {
+        "contents": "write",
+        "actions": "read",
+        "pull-requests": "write"
+      },
+      "outputs": {
+        "role": "${{ steps.control.outputs.role }}",
+        "phase": "${{ steps.control.outputs.phase }}",
+        "head": "${{ steps.control.outputs.head }}",
+        "mode": "${{ steps.control.outputs.mode }}",
+        "terminal": "${{ steps.control.outputs.terminal }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name inspect_14 --destination input",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name self_hosted_14 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.self_hosted_14.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci fetch-artifact --name api_14 --destination worker-output",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "if": "${{ needs.api_14.result == 'success' }}"
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci collect",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "SELF_HOSTED_OUTCOME": "${{ needs.self_hosted_14.result }}",
+            "API_OUTCOME": "${{ needs.api_14.result }}"
+          },
+          "id": "control"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-collect_14",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    },
+    "finish": {
+      "needs": [
+        "entry",
+        "tests_0",
+        "inspect_0",
+        "self_hosted_0",
+        "api_0",
+        "collect_0",
+        "tests_1",
+        "inspect_1",
+        "self_hosted_1",
+        "api_1",
+        "collect_1",
+        "tests_2",
+        "inspect_2",
+        "self_hosted_2",
+        "api_2",
+        "collect_2",
+        "tests_3",
+        "inspect_3",
+        "self_hosted_3",
+        "api_3",
+        "collect_3",
+        "tests_4",
+        "inspect_4",
+        "self_hosted_4",
+        "api_4",
+        "collect_4",
+        "tests_5",
+        "inspect_5",
+        "self_hosted_5",
+        "api_5",
+        "collect_5",
+        "tests_6",
+        "inspect_6",
+        "self_hosted_6",
+        "api_6",
+        "collect_6",
+        "tests_7",
+        "inspect_7",
+        "self_hosted_7",
+        "api_7",
+        "collect_7",
+        "tests_8",
+        "inspect_8",
+        "self_hosted_8",
+        "api_8",
+        "collect_8",
+        "tests_9",
+        "inspect_9",
+        "self_hosted_9",
+        "api_9",
+        "collect_9",
+        "tests_10",
+        "inspect_10",
+        "self_hosted_10",
+        "api_10",
+        "collect_10",
+        "tests_11",
+        "inspect_11",
+        "self_hosted_11",
+        "api_11",
+        "collect_11",
+        "tests_12",
+        "inspect_12",
+        "self_hosted_12",
+        "api_12",
+        "collect_12",
+        "tests_13",
+        "inspect_13",
+        "self_hosted_13",
+        "api_13",
+        "collect_13",
+        "tests_14",
+        "inspect_14",
+        "self_hosted_14",
+        "api_14",
+        "collect_14"
+      ],
+      "if": "${{ always() && needs.entry.result == 'success' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 5,
+      "permissions": {
+        "contents": "write",
+        "actions": "read",
+        "pull-requests": "write"
+      },
+      "environment": "review-publisher",
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "path": "trusted",
+            "persist-credentials": false
+          }
+        },
+        {
+          "id": "publisher-token",
+          "uses": "actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349",
+          "with": {
+            "app-id": "${{ vars.REVIEW_APP_ID }}",
+            "private-key": "${{ secrets.REVIEW_APP_PRIVATE_KEY }}",
+            "permission-checks": "write",
+            "permission-contents": "read",
+            "permission-administration": "read"
+          }
+        },
+        {
+          "run": "python3 trusted/.review/bin/reviewctl.py ci finish",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "REVIEW_CHECK_TOKEN": "${{ steps.publisher-token.outputs.token }}",
+            "JOB_OUTCOMES": "${{ toJSON(needs) }}"
+          }
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "${{ github.run_id }}-${{ github.run_attempt }}-record",
+            "path": "out",
+            "retention-days": 14,
+            "if-no-files-found": "error",
+            "include-hidden-files": true
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "status": "verified",
+  "mode": "api",
+  "codex_version": "0.169.0",
+  "runner": "linux",
+  "policy_digest": "f9bff9cb64c0887e2e240c59ffd04524ddd6289b6b18ae59917030b67170da9d",
+  "post_action_policy_digest": "bec3df18df25707127dffe768219f79b2d7feb023a4f19b81643b4a999f5a3b8",
+  "checks": {
+    "outside_read_denied": true,
+    "home_read_denied": true,
+    "docker_read_denied": true,
+    "write_denied": true,
+    "network_denied": true,
+    "setuid_denied": true,
+    "privilege_escalation_denied": true,
+    "secret_environment_absent": true,
+    "process_environ_denied": true,
+    "process_mem_denied": true,
+    "instructions_inert": true,
+    "secret_read_denied": true
+  },
+  "native_sha256": "b452ca20f838a8855a88a41050ee4a694033fff4ea3ecdad5633e6e0e8d13f2b"
+}

@@ -1,0 +1,41 @@
+{
+  "name": "Installed test container canary",
+  "on": {
+    "workflow_dispatch": {},
+    "pull_request": {
+      "paths": [
+        "probes/test_container_probe.py",
+        ".review/bin/**",
+        ".github/workflows/test-container.yml"
+      ]
+    }
+  },
+  "permissions": {
+    "contents": "read"
+  },
+  "jobs": {
+    "probe": {
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 8,
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "persist-credentials": false
+          }
+        },
+        {
+          "run": "python3 probes/test_container_probe.py"
+        },
+        {
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "test-container-canary",
+            "path": "probe-evidence/test-container.json",
+            "retention-days": 14
+          }
+        }
+      ]
+    }
+  }
+}

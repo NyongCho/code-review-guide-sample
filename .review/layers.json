@@ -1,0 +1,58 @@
+[
+  {
+    "layer": 1,
+    "name": "PR 전 검증",
+    "status": "needs_verification",
+    "evidence": [],
+    "trigger": "첫 실행 가능한 코드",
+    "next_action": "프로젝트의 실제 동작과 검증 명령을 연결하고 결과를 기록한다."
+  },
+  {
+    "layer": 2,
+    "name": "PR AI 리뷰",
+    "status": "needs_verification",
+    "evidence": [],
+    "trigger": "최초 PR",
+    "next_action": "프로젝트의 실제 동작과 검증 명령을 연결하고 결과를 기록한다."
+  },
+  {
+    "layer": 3,
+    "name": "보안 검증",
+    "status": "needs_verification",
+    "evidence": [],
+    "trigger": "인증·외부 입력 도입",
+    "next_action": "프로젝트의 실제 동작과 검증 명령을 연결하고 결과를 기록한다."
+  },
+  {
+    "layer": 4,
+    "name": "필수 CI",
+    "status": "needs_verification",
+    "evidence": [],
+    "trigger": "테스트 명령 확보",
+    "next_action": "프로젝트의 실제 동작과 검증 명령을 연결하고 결과를 기록한다."
+  },
+  {
+    "layer": 5,
+    "name": "위험도별 사람 확인",
+    "status": "needs_verification",
+    "evidence": [],
+    "trigger": "민감 경로 도입",
+    "next_action": "프로젝트의 실제 동작과 검증 명령을 연결하고 결과를 기록한다."
+  },
+  {
+    "layer": 6,
+    "name": "통합과 점진적 배포",
+    "status": "pending_applicability",
+    "evidence": [],
+    "trigger": "첫 배포 준비",
+    "next_action": "프로젝트의 실제 동작과 검증 명령을 연결하고 결과를 기록한다."
+  },
+  {
+    "layer": 7,
+    "name": "감지와 복구",
+    "status": "pending_applicability",
+    "evidence": [],
+    "trigger": "첫 배포 준비 또는 사고",
+    "next_action": "프로젝트의 실제 동작과 검증 명령을 연결하고 결과를 기록한다."
+  }
+]
