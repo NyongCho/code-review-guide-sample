@@ -5,7 +5,7 @@
     "NyongCho"
   ],
   "mode": "api",
-  "model": "gpt-6-astra",
+  "model": "gpt-6-luna",
   "effort": "low",
   "codex_version": "0.169.0",
   "test_commands": [
@@ -19,22 +19,32 @@
     ]
   ],
   "review_mode": "observe",
-  "auto_fix": false,
+  "auto_fix": true,
   "max_rounds": 3,
   "entry_isolation": {
-    "status": "needs_verification"
+    "status": "verified",
+    "evidence": [
+      "43822772399",
+      "43818354472",
+      "43822653001",
+      "43824609484",
+      "43827168365"
+    ]
   },
   "isolation": {
-    "status": "needs_verification"
+    "status": "verified",
+    "evidence": [
+      "43822775874"
+    ]
   },
   "api_budget": {
     "approved_usd": 5,
-    "max_calls": 3
+    "max_calls": 15
   },
   "check_publisher_app_id": 5780251,
   "critical_trials": 3,
   "auto_merge": false,
-  "model_timeout_s": 600,
+  "model_timeout_s": 60,
   "run_timeout_s": 3600,
   "retention_days": 14,
   "trusted_ref": "refs/heads/main",
