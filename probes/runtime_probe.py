@@ -37,6 +37,7 @@ else:
     original=tomllib.loads(state['original_policy']); actual=tomllib.loads((HOME/'config.toml').read_text())
     for key in ('permissions','default_permissions','web_search','project_doc_max_bytes'):
         assert actual[key] == original[key], key
+    secret_process=subprocess.Popen(['/bin/sleep','30'],env={'SYNTHETIC_SECRET':'outside-model-canary'})
     probe=r'''
 import errno,json,os,socket
 from pathlib import Path
@@ -70,9 +71,16 @@ assert values['NoNewPrivs']=='1' and int(values['CapEff'],16)==0,values
 result['privilege_escalation_denied']=True
 assert not any(k in os.environ for k in ['OPENAI_API_KEY','CODEX_API_KEY','GH_TOKEN','GITHUB_TOKEN','PROXY_API_KEY'])
 result['secret_environment_absent']=True
+for name in ('environ','mem'):
+    try:
+        with open('/proc/OUTSIDE_PROCESS_PID/'+name,'rb') as handle:handle.read(1)
+    except (PermissionError,FileNotFoundError,ProcessLookupError):result['process_'+name+'_denied']=True
+    else:raise AssertionError('outside process '+name+' is readable')
 print(json.dumps(result))
 '''
+    probe=probe.replace('OUTSIDE_PROCESS_PID',str(secret_process.pid))
     result=subprocess.run([native,'sandbox','-P','review','-C',str(INPUT),'--','/usr/bin/python3','-c',probe],env=env,capture_output=True,text=True,timeout=20)
+    secret_process.terminate();secret_process.wait()
     if result.returncode:
         print(result.stderr[-5000:]);raise SystemExit(result.returncode)
     checks=json.loads(result.stdout)
@@ -81,7 +89,7 @@ print(json.dumps(result))
     json.loads(prompt.stdout)
     assert 'INSTRUCTION_CANARY_8271' not in prompt.stdout
     checks['instructions_inert']=True
-    checks['secret_read_denied']=checks['outside_read_denied'] and checks['home_read_denied']
+    checks['secret_read_denied']=checks['outside_read_denied'] and checks['home_read_denied'] and checks['process_environ_denied'] and checks['process_mem_denied']
     report={'status':'verified','mode':'api','codex_version':'0.169.0','runner':'linux',
       'policy_digest':hashlib.sha256(state['original_policy'].encode()).hexdigest(),
       'post_action_policy_digest':hashlib.sha256((HOME/'config.toml').read_bytes()).hexdigest(),
