@@ -1,4 +1,5 @@
-# Review guide acceptance sample
+# Review guide API acceptance sample
 
-Private synthetic fixtures; no production data or credentials.
-Boundary canary checks environment access before model secrets are registered.
+Public synthetic fixtures; no production data or credentials.
+ChatGPT subscription automation is excluded.
+Boundary and runtime canaries run before any real API key is registered.
