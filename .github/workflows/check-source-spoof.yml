@@ -1,0 +1,22 @@
+{
+  "name": "Untrusted same-name check canary",
+  "on": {
+    "pull_request": {}
+  },
+  "permissions": {
+    "checks": "write"
+  },
+  "jobs": {
+    "spoof": {
+      "runs-on": "ubuntu-24.04",
+      "steps": [
+        {
+          "env": {
+            "GH_TOKEN": "${{ github.token }}"
+          },
+          "run": "python3 - <<'PY'\nimport json, os, urllib.request\nwith open(os.environ['GITHUB_EVENT_PATH']) as f:\n    event = json.load(f)\nhead = event['pull_request']['head']['sha']\nfor name in ('review-guide/ci', 'review-guide/human'):\n    data = {'name': name, 'head_sha': head, 'status': 'completed', 'conclusion': 'success',\n            'output': {'title': 'Synthetic spoof attempt', 'summary': 'This untrusted GitHub Actions check must not satisfy the dedicated publisher App requirement.'}}\n    request = urllib.request.Request('https://api.github.com/repos/' + os.environ['GITHUB_REPOSITORY'] + '/check-runs',\n        data=json.dumps(data).encode(), method='POST',\n        headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Content-Type': 'application/json', 'Accept': 'application/vnd.github+json'})\n    with urllib.request.urlopen(request) as response:\n        result = json.load(response)\n    assert result['app']['id'] == 15368\n    print(json.dumps({'name': name, 'app_id': result['app']['id'], 'head_sha': head, 'conclusion': result['conclusion']}))\nPY\n"
+        }
+      ]
+    }
+  }
+}
