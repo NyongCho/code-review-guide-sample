@@ -51,11 +51,13 @@ except OSError as exc:
     assert exc.errno in (errno.EPERM,errno.EACCES,errno.EROFS),exc
     result['write_denied']=True
 else:raise AssertionError('write succeeded')
+s=None
 try:
     s=socket.socket();s.settimeout(3);s.connect(('1.1.1.1',443))
 except PermissionError:result['network_denied']=True
 else:raise AssertionError('network not denied by permission')
-finally:s.close()
+finally:
+    if s is not None:s.close()
 try:os.setuid(0)
 except PermissionError:result['setuid_denied']=True
 else:raise AssertionError('setuid succeeded')
