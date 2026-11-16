@@ -1,0 +1,60 @@
+{
+  "name": "API runtime isolation canary",
+  "on": {
+    "workflow_dispatch": {}
+  },
+  "permissions": {
+    "contents": "read"
+  },
+  "jobs": {
+    "probe": {
+      "if": "github.ref == 'refs/heads/main'",
+      "runs-on": "ubuntu-24.04",
+      "environment": "review-runtime",
+      "timeout-minutes": 12,
+      "steps": [
+        {
+          "uses": "actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+          "with": {
+            "ref": "${{ github.workflow_sha }}",
+            "persist-credentials": false
+          }
+        },
+        {
+          "name": "Install pinned official tools without model call",
+          "uses": "openai/codex-action@13e9c17417b29e9a276f73ec6ed7fb574137d3c3",
+          "with": {
+            "codex-version": "0.169.0"
+          }
+        },
+        {
+          "run": "python3 probes/runtime_probe.py prepare"
+        },
+        {
+          "name": "Initialize official proxy and remove privileges using fake key",
+          "uses": "openai/codex-action@13e9c17417b29e9a276f73ec6ed7fb574137d3c3",
+          "with": {
+            "codex-version": "0.169.0",
+            "codex-home": "/home/runner/review-home",
+            "openai-api-key": "synthetic-not-a-real-key",
+            "safety-strategy": "drop-sudo",
+            "permission-profile": "review"
+          }
+        },
+        {
+          "run": "python3 probes/runtime_probe.py check"
+        },
+        {
+          "if": "always()",
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "api-isolation-canary",
+            "path": "probe-evidence/",
+            "if-no-files-found": "ignore",
+            "retention-days": 14
+          }
+        }
+      ]
+    }
+  }
+}
