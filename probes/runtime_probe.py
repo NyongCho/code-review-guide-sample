@@ -59,7 +59,10 @@ else:raise AssertionError('network not denied by permission')
 finally:
     if s is not None:s.close()
 try:os.setuid(0)
-except PermissionError:result['setuid_denied']=True
+except OSError as exc:
+    assert exc.errno in (errno.EPERM,errno.EINVAL),exc
+    assert os.getuid()!=0
+    result['setuid_denied']=True
 else:raise AssertionError('setuid succeeded')
 status=Path('/proc/self/status').read_text()
 values={line.split(':',1)[0]:line.split(':',1)[1].strip() for line in status.splitlines() if ':' in line}
