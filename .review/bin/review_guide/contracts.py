@@ -11,6 +11,7 @@ from typing import Any
 Json = dict[str, Any]
 STATES = {"verified", "findings", "needs_human", "incomplete", "failed"}
 ROLES = {"bugs", "security", "verify", "fix"}
+EMPTY_FINDINGS_ERROR = "findings status requires findings"
 SENSITIVE = ["auth/**", "**/auth/**", "billing/**", "**/billing/**", "migrations/**",
              "**/migrations/**", ".github/**", ".review/**", ".agents/**", ".codex/**",
              "**/AGENTS*", "AGENTS*", "REVIEW.md", "*lock*", "pyproject.toml"]
@@ -139,7 +140,7 @@ def validate_output(value: Json, role: str) -> Json:
         relative_path(item["path"])
         integer(item["line"], "line")
     require(result["status"] != "verified" or not result["findings"], "verified cannot contain findings")
-    require(result["status"] != "findings" or bool(result["findings"]), "findings status requires findings")
+    require(result["status"] != "findings" or bool(result["findings"]), EMPTY_FINDINGS_ERROR)
     require(isinstance(result["dispositions"], list), "dispositions must be a list")
     for disposition in result["dispositions"]:
         require(isinstance(disposition, dict) and set(disposition) == {"id", "decision", "reason"},

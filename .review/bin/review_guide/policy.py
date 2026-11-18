@@ -2,6 +2,7 @@
 
 import fnmatch
 import hashlib
+import os
 import subprocess
 import tempfile
 from dataclasses import dataclass
@@ -16,6 +17,10 @@ class VerifiedApproval:
     binding: Json
     actor: str
     source: str
+
+
+class PatchSyntaxError(ValidationError):
+    """Git could not parse the diff; no edit is authorized."""
 
 
 def matches(path: str, patterns: list[str]) -> bool:
@@ -35,8 +40,11 @@ def patch_paths(patch: str) -> list[str]:
         raise ValidationError("empty or oversized patch")
     with tempfile.TemporaryDirectory(prefix="review-patch-") as tmp:
         result = subprocess.run(["git", "apply", "--numstat", "-z", "-"], input=patch,
-                                cwd=tmp, capture_output=True, text=True, timeout=10)
+                                cwd=tmp, capture_output=True, text=True, timeout=10,
+                                env={**os.environ, "LC_ALL": "C"})
     if result.returncode:
+        if result.stderr.startswith("error: corrupt patch at "):
+            raise PatchSyntaxError("invalid unified diff")
         raise ValidationError("invalid git patch")
     paths = []
     for record in result.stdout.split("\x00"):
@@ -65,6 +73,8 @@ def check_patch(patch: str, run: Json, config: Json,
         return reject("unsupported new file mode")
     try:
         paths = patch_paths(patch)
+    except PatchSyntaxError:
+        return reject("invalid unified diff") | {"format_feedback": "Regenerate a complete git diff with accurate hunk counts and repository-relative paths. The source/ snapshot prefix is not part of the target paths."}
     except (ValidationError, subprocess.TimeoutExpired):
         return reject("unsafe or invalid patch")
     binding = {key: run.get(key) for key in ("repository", "base_sha", "head_sha", "input_digest", "policy_sha")}
