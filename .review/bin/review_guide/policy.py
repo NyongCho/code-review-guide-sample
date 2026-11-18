@@ -54,11 +54,11 @@ def check_hunk_boundaries(patch: str) -> None:
                 continue
             if remaining == 0:
                 # Traditional unified diffs can start a new file without a diff --git line.
-                new_file = (line.startswith("--- ") and index + 1 < len(lines)
-                            and lines[index + 1].startswith("+++ "))
-                if not new_file and line.rstrip("\r") != "-- " and line.startswith(("+", "-", " ")):
+                if (line.startswith("--- ") and index + 2 < len(lines)
+                        and lines[index + 1].startswith("+++ ") and lines[index + 2].startswith("@@ ")):
+                    remaining = None
+                elif line.rstrip("\r") != "-- " and line.startswith(("+", "-", " ")):
                     raise PatchSyntaxError("change outside declared hunk")
-                remaining = None
             elif not line or line.startswith((" ", "+", "-")):
                 # Git also accepts an empty line as blank context.
                 remaining -= 1 if line.startswith(("+", "-")) else 2
