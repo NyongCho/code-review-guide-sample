@@ -5,6 +5,7 @@ import io
 import json
 import re
 import stat
+import time
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -306,14 +307,31 @@ def publish_patch(run: Json, patch: str, config: Json, repo: Path, api: GitHub) 
         api.call('PATCH', root + '/git/refs/heads/' + quote(current['head']['ref'], safe='/'),
                  {'sha': commit['sha'], 'force': False})
     except OSError:
-        # A response may be lost after the server has committed the ref update.
-        latest = get_pr(run['repository'], run['pr'], api=api)
-        if latest['head']['sha'] != commit['sha']:
-            return {'status': 'incomplete', 'reason': 'push failed or raced with another writer'}
-    latest = get_pr(run['repository'], run['pr'], api=api)
-    if latest['head']['sha'] != commit['sha']:
-        return {'status': 'incomplete', 'reason': 'stale_head'}
-    return {'status': 'verified', 'head_sha': commit['sha'], 'input_digest': input_digest(latest)}
+        # The write may have reached GitHub. Reconcile it without sending another write.
+        pass
+    return observe_published_head(run, commit['sha'], api)
+
+
+def observe_published_head(run: Json, published_sha: str, api: GitHub) -> Json:
+    deadline = datetime.fromisoformat(run['deadline_at'].replace('Z', '+00:00'))
+    for delay in (0, 1, 2, 4):
+        if (deadline - datetime.now(timezone.utc)).total_seconds() <= delay:
+            return {'status': 'incomplete', 'reason': 'deadline expired'}
+        if delay:
+            time.sleep(delay)
+        pr = get_pr(run['repository'], run['pr'], api=api)
+        head = pr['head']['sha']
+        if head not in (run['head_sha'], published_sha):
+            return {'status': 'incomplete', 'reason': 'stale_head'}
+        # Check the original input binding while allowing only our own head transition.
+        original = dict(pr, head=dict(pr['head'], sha=run['head_sha']))
+        current = verify_current(run, original)
+        if current['status'] != 'verified':
+            return current
+        if head == published_sha:
+            return {'status': 'verified', 'head_sha': head, 'input_digest': input_digest(pr)}
+        # The pull request can still show the old ref just after GitHub accepts the push.
+    return {'status': 'incomplete', 'reason': 'published head not observed before retry limit'}
 
 
 def download_artifact(repo: str, expected: Json, dest: Path, api: GitHub) -> None:
