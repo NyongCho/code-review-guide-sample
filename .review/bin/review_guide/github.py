@@ -320,6 +320,8 @@ def observe_published_head(run: Json, published_sha: str, api: GitHub) -> Json:
         if delay:
             time.sleep(delay)
         pr = get_pr(run['repository'], run['pr'], api=api)
+        if datetime.now(timezone.utc) >= deadline:
+            return {'status': 'incomplete', 'reason': 'deadline expired'}
         head = pr['head']['sha']
         if head not in (run['head_sha'], published_sha):
             return {'status': 'incomplete', 'reason': 'stale_head'}
