@@ -242,11 +242,13 @@ def publish_patch(run: Json, patch: str, config: Json, repo: Path, api: GitHub) 
     env = {'PATH': os.environ.get('PATH', '/usr/bin:/bin'), 'GIT_CONFIG_NOSYSTEM': '1', 'HOME': '/nonexistent'}
     with tempfile.TemporaryDirectory(prefix='review-patch-') as tmp:
         work = Path(tmp)/'tree'
-        subprocess.run(['git', 'clone', '--quiet', '--no-checkout', '--no-hardlinks', str(repo.resolve()), str(work)],
+        subprocess.run(['git', 'init', '--quiet', str(work)],
                        env=env, check=True, capture_output=True)
         def git(*args, input=None):
             return subprocess.run(['git', '-C', str(work), '-c', 'core.hooksPath=/dev/null', *args],
                                   input=input, env=env, capture_output=True, check=True).stdout
+        # A shallow runner may have this object only in FETCH_HEAD, outside all branches.
+        git('fetch', '--no-tags', '--depth=1', repo.resolve().as_uri(), run['head_sha'])
         git('read-tree', run['head_sha'])
         git('apply', '--cached', '--whitespace=error', '-', input=patch.encode())
         expected_tree = git('write-tree').decode().strip()
