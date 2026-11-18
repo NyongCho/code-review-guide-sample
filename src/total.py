@@ -1,3 +1,3 @@
 def total_cents(items: list[int]) -> int:
-    """Sum every order item in cents, including repeated amounts."""
-    return sum(items)
+    """Sum signed line amounts in cents, including credits and repeated amounts."""
+    return sum(amount for amount in items if amount > 0)
