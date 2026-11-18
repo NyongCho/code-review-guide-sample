@@ -89,6 +89,9 @@ def advance(state: Json, event: Json, config: Json) -> Json:
     if kind == "patch_result":
         require(result["phase"] == "publish", "patch result out of sequence")
         published = event["result"]
+        if published.get("status") == "needs_human" and published.get("format_feedback"):
+            result.pop("patch", None)
+            return _correct_fix_format(result, cfg, published["format_feedback"])
         if published.get("status") != "verified":
             return _finish(result, published.get("status", "failed"), published.get("reason", "patch not published"))
         hex_digest(published.get("head_sha"), "published head", (40, 64))

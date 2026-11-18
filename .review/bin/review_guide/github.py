@@ -251,7 +251,12 @@ def publish_patch(run: Json, patch: str, config: Json, repo: Path, api: GitHub) 
         # A shallow runner may have this object only in FETCH_HEAD, outside all branches.
         git('fetch', '--no-tags', '--depth=1', repo.resolve().as_uri(), run['head_sha'])
         git('read-tree', run['head_sha'])
-        git('apply', '--cached', '--whitespace=error', '-', input=patch.encode())
+        try:
+            git('apply', '--cached', '--whitespace=error', '-', input=patch.encode())
+        except subprocess.CalledProcessError:
+            # No remote write has happened. Discard this index along with the proposal.
+            return {'status': 'needs_human', 'reason': 'git rejected the patch on the current head',
+                    'format_feedback': 'Regenerate the complete diff against the current source. Match hunk context exactly and remove added trailing whitespace and blank lines at EOF.'}
         expected_tree = git('write-tree').decode().strip()
         entries = []
         for name in decision['paths']:
