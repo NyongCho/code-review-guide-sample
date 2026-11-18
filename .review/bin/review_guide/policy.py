@@ -92,7 +92,7 @@ def patch_paths(patch: str) -> list[str]:
 
 
 def check_patch(patch: str, run: Json, config: Json,
-                approval: VerifiedApproval | None) -> Json:
+                approval: VerifiedApproval | None, *, created_paths: set[str] | None = None) -> Json:
     cfg = validate_config(config)
     reject = lambda reason: {"status": "needs_human", "reason": reason, "paths": []}
     if not cfg["auto_fix"]:
@@ -120,7 +120,7 @@ def check_patch(patch: str, run: Json, config: Json,
         return {"status": "verified", "reason": "scoped human approval", "paths": paths}
     sections = patch.split("diff --git ")[1:]
     for path in paths:
-        is_new = any("\nnew file mode 100644\n" in section and f"\n+++ b/{path}\n" in section for section in sections)
+        is_new = path in created_paths if created_paths is not None else any("\nnew file mode 100644\n" in section and f"\n+++ b/{path}\n" in section for section in sections)
         reason = automatic_path_error(path, is_new, run, cfg)
         if reason:
             return reject(reason)
@@ -132,8 +132,13 @@ def automatic_path_error(path: str, is_new: bool, run: Json, cfg: Json) -> str |
         return "path is outside automatic fix scope"
     if matches(path, SENSITIVE + cfg["sensitive_paths"]):
         return "sensitive path"
-    if path.startswith("tests/") or "/tests/" in path:
-        return None if is_new else "existing verification changed"
+    parts = path.split("/")
+    test_directory = any(part in {"test", "tests", "__tests__", "spec", "specs"} for part in parts[:-1])
+    test_filename = matches(parts[-1], ["test*.py", "*_test.*", "*.test.*", "*.spec.*", "*Test.java", "*Tests.java"])
+    if not is_new and (test_directory or test_filename):
+        return "existing verification changed"
+    if is_new and "tests" in parts[:-1]:
+        return None
     if path not in run.get("fix_paths", []):
         return "path is unrelated to verified findings"
     return None

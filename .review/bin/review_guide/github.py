@@ -280,7 +280,8 @@ def publish_patch(run: Json, edits: list[Json], config: Json, repo: Path, api: G
         git('read-tree', run['head_sha'])
         try:
             patch = stage_file_edits(git, run['head_sha'], edits)
-            decision = check_patch(patch, run, cfg, None)
+            created = {edit['path'] for edit in edits if edit['operation'] == 'create'}
+            decision = check_patch(patch, run, cfg, None, created_paths=created)
             if decision['status'] != 'verified':
                 return {'status': 'needs_human', 'reason': decision['reason']}
             expected_tree = git('write-tree').decode().strip()
