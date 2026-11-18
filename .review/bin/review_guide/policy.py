@@ -43,7 +43,7 @@ def patch_paths(patch: str) -> list[str]:
                                 cwd=tmp, capture_output=True, text=True, timeout=10,
                                 env={**os.environ, "LC_ALL": "C"})
     if result.returncode:
-        if "corrupt patch at line" in result.stderr:
+        if result.stderr.startswith("error: corrupt patch at "):
             raise PatchSyntaxError("invalid unified diff")
         raise ValidationError("invalid git patch")
     paths = []
