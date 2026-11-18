@@ -87,7 +87,7 @@ def propose_case(run: Json, snapshot: Path, dest: Path) -> Json:
         intent = run.get('intent', {})
         # Origin links live in the control record, never in the generated evaluation context.
         context = {key: re.sub(r'https?://\S+', '[external reference omitted]', str(intent.get(key, '')))
-                   for key in ('title', 'body')}
+                   for key in ('head_commit_message', 'title', 'body') if key in intent}
         (clean/'context.json').write_text(json.dumps(context, ensure_ascii=False, indent=2) + '\n')
         clean_files = inventory(clean)
         clean_manifest = {'files': {k:v for k,v in actual.items() if k in clean_files},
