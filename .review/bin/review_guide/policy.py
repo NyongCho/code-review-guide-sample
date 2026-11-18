@@ -3,6 +3,7 @@
 import fnmatch
 import hashlib
 import os
+import re
 import subprocess
 import tempfile
 from dataclasses import dataclass
@@ -35,6 +36,36 @@ def classify_risk(paths: list[str], ai_risk: str | None, config: Json) -> Json:
     return {"risk": risk, "sensitive_paths": sensitive, "human_required": risk != "low"}
 
 
+def check_hunk_boundaries(patch: str) -> None:
+    """Git can ignore an extra change line once the declared hunk is complete."""
+    lines = patch.split("\n")
+    remaining = None
+    for index, line in enumerate(lines):
+        if line.startswith("@@ "):
+            header = re.match(r"^@@ -[0-9]+(?:,([0-9]+))? \+[0-9]+(?:,([0-9]+))? @@", line)
+            if not header:
+                raise PatchSyntaxError("invalid hunk header")
+            try:
+                remaining = sum(int(count or "1") for count in header.groups())
+            except ValueError as exc:
+                raise PatchSyntaxError("invalid hunk size") from exc
+        elif remaining is not None:
+            if line.startswith("\\ No newline at end of file"):
+                continue
+            if remaining == 0:
+                # Traditional unified diffs can start a new file without a diff --git line.
+                if (line.startswith("--- ") and index + 2 < len(lines)
+                        and lines[index + 1].startswith("+++ ") and lines[index + 2].startswith("@@ ")):
+                    remaining = None
+                elif line.rstrip("\r") != "-- " and line.startswith(("+", "-", " ")):
+                    raise PatchSyntaxError("change outside declared hunk")
+            elif not line or line.startswith((" ", "+", "-")):
+                # Git also accepts an empty line as blank context.
+                remaining -= 1 if line.startswith(("+", "-")) else 2
+            else:
+                remaining = None
+
+
 def patch_paths(patch: str) -> list[str]:
     if not patch or len(patch.encode()) > 2_000_000 or "\x00" in patch:
         raise ValidationError("empty or oversized patch")
@@ -46,6 +77,7 @@ def patch_paths(patch: str) -> list[str]:
         if result.stderr.startswith("error: corrupt patch at "):
             raise PatchSyntaxError("invalid unified diff")
         raise ValidationError("invalid git patch")
+    check_hunk_boundaries(patch)
     paths = []
     for record in result.stdout.split("\x00"):
         if not record:
