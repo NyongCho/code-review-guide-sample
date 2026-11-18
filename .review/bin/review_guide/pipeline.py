@@ -202,9 +202,9 @@ def ci_main(operation: str, artifact_name=None, destination=None) -> Json:
                  'status': 'incomplete', 'findings': [], 'evidence': [],
                  'execution_id': os.environ['GITHUB_RUN_ID']+'-'+os.environ['GITHUB_RUN_ATTEMPT'],
                  'intent': {'head_commit_message': commit['commit']['message']}}
-        # GitHub's run created_at includes time waiting before the first job starts.
+        # created_at belongs to the original run; run_started_at advances on each rerun.
         metadata = api.call('GET', f'/repos/{cfg["repository"]}/actions/runs/{int(os.environ["GITHUB_RUN_ID"])}')
-        started = datetime.fromisoformat(metadata['created_at'].replace('Z', '+00:00'))
+        started = datetime.fromisoformat(metadata['run_started_at'].replace('Z', '+00:00'))
         state['created_at'] = started.isoformat()
         state['deadline_at'] = (started + timedelta(seconds=cfg['run_timeout_s'])).isoformat()
         state = initial_state(state, cfg)

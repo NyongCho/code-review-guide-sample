@@ -92,7 +92,7 @@ def render_workflows(config: Json) -> dict[str, str]:
                                         'codex-home': '/home/runner/review-home', 'permission-profile': 'review',
                                         'safety-strategy': 'drop-sudo', 'codex-version': '${{ steps.prepare.outputs.codex_version }}',
                                         'model': '${{ steps.prepare.outputs.model }}', 'effort': '${{ steps.prepare.outputs.effort }}',
-                                        'codex-args': '["--ephemeral", "--skip-git-repo-check"]'}},
+                                        'codex-args': '["--json", "--ephemeral"]'}},
                               command('normalize-worker', {'ACTION_OUTCOME': '${{ steps.codex.outcome }}'}, **{'if': '${{ always() && !cancelled() }}'})])
             steps[2]['id'] = 'prepare'
             steps.append(upload(name, 'model-result.json', days))

@@ -49,7 +49,7 @@
             "prompt": "Return exactly {\"ok\": true}. Do not call tools.",
             "output-schema-file": "/home/runner/review-input/smoke.schema.json",
             "output-file": "${{ github.workspace }}/smoke-result.json",
-            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\"]"
           }
         },
         {

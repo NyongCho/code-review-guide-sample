@@ -273,7 +273,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\"]"
           }
         },
         {
@@ -567,7 +567,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\"]"
           }
         },
         {
@@ -861,7 +861,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\"]"
           }
         },
         {
@@ -1155,7 +1155,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\"]"
           }
         },
         {
@@ -1449,7 +1449,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\"]"
           }
         },
         {
@@ -1743,7 +1743,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\"]"
           }
         },
         {
@@ -2037,7 +2037,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\"]"
           }
         },
         {
@@ -2331,7 +2331,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\"]"
           }
         },
         {
@@ -2625,7 +2625,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\"]"
           }
         },
         {
@@ -2919,7 +2919,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\"]"
           }
         },
         {
@@ -3213,7 +3213,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\"]"
           }
         },
         {
@@ -3507,7 +3507,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\"]"
           }
         },
         {
@@ -3801,7 +3801,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\"]"
           }
         },
         {
@@ -4095,7 +4095,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\"]"
           }
         },
         {
@@ -4389,7 +4389,7 @@
             "codex-version": "${{ steps.prepare.outputs.codex_version }}",
             "model": "${{ steps.prepare.outputs.model }}",
             "effort": "${{ steps.prepare.outputs.effort }}",
-            "codex-args": "[\"--json\", \"--ephemeral\", \"--skip-git-repo-check\"]"
+            "codex-args": "[\"--json\", \"--ephemeral\"]"
           }
         },
         {
