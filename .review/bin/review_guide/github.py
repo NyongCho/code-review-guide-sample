@@ -13,7 +13,7 @@ from urllib.error import HTTPError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
-from .contracts import Json, digest, require, relative_path, validate_config
+from .contracts import Json, ValidationError, digest, require, relative_path, validate_config
 from .lifecycle import required_checks
 from .policy import VerifiedApproval, classify_risk
 
@@ -223,41 +223,81 @@ def verify_archive(payload: bytes, metadata: Json, expected: Json, dest: Path) -
             path.write_bytes(archive.read(member))
 
 
-def publish_patch(run: Json, patch: str, config: Json, repo: Path, api: GitHub) -> Json:
+def stage_file_edits(git, head: str, edits: list[Json]) -> str:
+    """Render a diff in the isolated index and account for every changed path."""
+    for edit in edits:
+        name, operation = edit['path'], edit['operation']
+        entry = git('ls-tree', '-z', head, '--', name)
+        if (operation == 'create') == bool(entry):
+            raise ValidationError('edit operation does not match file on reviewed head')
+        mode = '100644'
+        if entry:
+            mode, kind, blob = entry.split(b'\t', 1)[0].decode().split()
+            if kind != 'blob' or mode not in ('100644', '100755'):
+                raise ValidationError('only regular text files can be edited')
+            original = git('cat-file', 'blob', blob).decode()
+            if '\x00' in original:
+                raise ValidationError('binary edit requires human review')
+        if operation == 'delete':
+            git('update-index', '--force-remove', '--', name)
+        else:
+            blob = git('hash-object', '-w', '--stdin', input=edit['content'].encode()).decode().strip()
+            git('update-index', '--add', '--cacheinfo', mode, blob, name)
+    diff = ('diff', '--cached', '--no-renames', '--no-ext-diff', '--no-textconv', '--no-color')
+    changed = git(*diff, '--name-only', '-z', head, '--').split(b'\x00')[:-1]
+    if set(changed) != {edit['path'].encode() for edit in edits}:
+        raise ValidationError('proposed paths differ from actual changes')
+    return git(*diff, '--full-index', head, '--').decode()
+
+
+def publish_patch(run: Json, edits: list[Json], config: Json, repo: Path, api: GitHub) -> Json:
     """Build a tree without executing PR files; non-force ref update cannot replace a divergent head."""
     import base64
     import os
     import subprocess
     import tempfile
-    from .policy import check_patch
+    from .contracts import validate_edits
+    from .policy import automatic_path_error, check_patch
     if datetime.now(timezone.utc) >= datetime.fromisoformat(run['deadline_at'].replace('Z', '+00:00')):
         return {'status': 'incomplete', 'reason': 'deadline expired'}
-    decision = check_patch(patch, run, config, None)
-    if decision['status'] != 'verified':
-        return decision
+    validate_edits(edits)
+    cfg = validate_config(config)
+    for edit in edits:
+        reason = automatic_path_error(edit['path'], edit['operation'] == 'create', run, cfg)
+        if reason:
+            return {'status': 'needs_human', 'reason': reason}
     root = route(run['repository'])
-    marker = 'review-guide patch ' + digest({'run': run_key(run), 'patch': patch})
-    intent = run.get('intent', {}).get('head_commit_message')
-    if intent:
-        marker += '\n\nOriginal change intent:\n' + intent
     env = {'PATH': os.environ.get('PATH', '/usr/bin:/bin'), 'GIT_CONFIG_NOSYSTEM': '1', 'HOME': '/nonexistent'}
     with tempfile.TemporaryDirectory(prefix='review-patch-') as tmp:
         work = Path(tmp)/'tree'
         subprocess.run(['git', 'init', '--quiet', str(work)],
                        env=env, check=True, capture_output=True)
         def git(*args, input=None):
-            return subprocess.run(['git', '-C', str(work), '-c', 'core.hooksPath=/dev/null', *args],
+            return subprocess.run(['git', '-C', str(work), '--literal-pathspecs', '-c', 'core.hooksPath=/dev/null', *args],
                                   input=input, env=env, capture_output=True, check=True).stdout
         # A shallow runner may have this object only in FETCH_HEAD, outside all branches.
         git('fetch', '--no-tags', '--depth=1', repo.resolve().as_uri(), run['head_sha'])
         git('read-tree', run['head_sha'])
         try:
+            patch = stage_file_edits(git, run['head_sha'], edits)
+            decision = check_patch(patch, run, cfg, None)
+            if decision['status'] != 'verified':
+                return {'status': 'needs_human', 'reason': decision['reason']}
+            expected_tree = git('write-tree').decode().strip()
+            git('read-tree', run['head_sha'])
             git('apply', '--cached', '--whitespace=error', '-', input=patch.encode())
+            require(git('write-tree').decode().strip() == expected_tree, 'generated diff changed the proposed tree')
+        except ValidationError as exc:
+            return {'status': 'needs_human', 'reason': str(exc)}
+        except UnicodeError:
+            return {'status': 'needs_human', 'reason': 'only UTF-8 text files can be edited'}
         except subprocess.CalledProcessError:
-            # No remote write has happened. Discard this index along with the proposal.
-            return {'status': 'needs_human', 'reason': 'git rejected the patch on the current head',
-                    'format_feedback': 'Regenerate the complete diff against the current source. Match hunk context exactly and remove added trailing whitespace and blank lines at EOF.'}
-        expected_tree = git('write-tree').decode().strip()
+            return {'status': 'needs_human', 'reason': 'Git rejected the file edits',
+                    'format_feedback': 'Return complete file contents with valid paths. Remove added trailing whitespace and excess blank lines at EOF.'}
+        marker = 'review-guide patch ' + digest({'run': run_key(run), 'patch': patch})
+        intent = run.get('intent', {}).get('head_commit_message')
+        if intent:
+            marker += '\n\nOriginal change intent:\n' + intent
         entries = []
         for name in decision['paths']:
             # Deletion has no index entry; binary and mode changes were rejected by policy.

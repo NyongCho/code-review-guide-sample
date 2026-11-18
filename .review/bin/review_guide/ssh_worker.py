@@ -165,7 +165,7 @@ def run_remote(run: Json, config: Json, workspace: Path, connection: Json, execu
                     process.wait()
         try:
             value = json.loads(raw)
-            normalized = validate_output({k:v for k,v in value.items() if k in {'status','findings','summary','risk','patch','dispositions'}},run['role'])
+            normalized = validate_output({k:v for k,v in value.items() if k in {'status','findings','summary','risk','patch','edits','dispositions'}},run['role'])
             return normalized | {k:value[k] for k in ('usage','elapsed_s','request_evidence') if k in value}
         except (ValueError,TypeError,AttributeError):
             return _failure('failed','invalid SSH worker output')

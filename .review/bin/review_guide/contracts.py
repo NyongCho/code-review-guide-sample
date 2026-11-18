@@ -115,16 +115,45 @@ def validate_config(value: Json) -> Json:
     return cfg
 
 
+def validate_edits(edits: list) -> None:
+    require(isinstance(edits, list), "edits must be a list")
+    seen = set()
+    size = 0
+    for edit in edits:
+        require(isinstance(edit, dict) and set(edit) == {"path", "operation", "content"}, "invalid file edit")
+        path = relative_path(edit["path"])
+        require(path not in seen and ".git" not in path.lower().split("/")
+                and all(ch.isprintable() for ch in path), "duplicate or unsafe edit path")
+        seen.add(path)
+        require(edit["operation"] in ("create", "replace", "delete"), "invalid edit operation")
+        content = edit["content"]
+        require(isinstance(content, str) and "\x00" not in content, "edit requires text content")
+        require(edit["operation"] != "delete" or not content, "delete requires empty content")
+        try:
+            size += len(content.encode()) + len(path.encode())
+        except UnicodeEncodeError as exc:
+            raise ValidationError("edit requires UTF-8 text") from exc
+        require(size <= 2_000_000, "oversized edit proposal")
+
+
 def validate_output(value: Json, role: str) -> Json:
     result = object_value(value)
     require(role in ROLES, "invalid model role")
-    require(set(result) == {"status", "findings", "summary", "risk", "patch", "dispositions"},
+    proposal = "edits" if "edits" in result else "patch"
+    require(set(result) == {"status", "findings", "summary", "risk", proposal, "dispositions"},
             "invalid model output fields")
     require(result["status"] in STATES, "invalid output status")
     text(result["summary"], "summary")
     require(result["risk"] in {"low", "medium", "high", "unknown"}, "invalid risk")
-    require(isinstance(result["patch"], str), "patch must be text")
-    require(role == "fix" or not result["patch"], "only fixer may return a patch")
+    if proposal == "edits":
+        validate_edits(result["edits"])
+        require(role == "fix" or not result["edits"], "only fixer may return edits")
+        if not result["edits"]:
+            # Retain the review-record format used by historical evaluation cases.
+            del result["edits"]
+            result["patch"] = ""
+    else:
+        require(isinstance(result["patch"], str) and not result["patch"], "file edits required")
     require(isinstance(result["findings"], list), "findings must be a list")
     ids = set()
     for item in result["findings"]:

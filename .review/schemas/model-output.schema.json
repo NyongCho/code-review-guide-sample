@@ -76,9 +76,6 @@
         "unknown"
       ]
     },
-    "patch": {
-      "type": "string"
-    },
     "dispositions": {
       "type": "array",
       "items": {
@@ -106,6 +103,33 @@
         ],
         "additionalProperties": false
       }
+    },
+    "edits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "operation": {
+            "enum": [
+              "replace",
+              "create",
+              "delete"
+            ]
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "operation",
+          "content"
+        ],
+        "additionalProperties": false
+      }
     }
   },
   "required": [
@@ -113,7 +137,7 @@
     "findings",
     "summary",
     "risk",
-    "patch",
+    "edits",
     "dispositions"
   ],
   "additionalProperties": false

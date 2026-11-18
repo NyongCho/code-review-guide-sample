@@ -42,7 +42,7 @@ def normalize_result(raw: str, exit_code: int | None, timed_out: bool) -> Json:
                     and event["item"].get("type") == "agent_message"]
         require(bool(messages), "missing final message")
         result = json.loads(messages[-1])
-        result = validate_output(result, "fix" if isinstance(result, dict) and result.get("patch") else "verify")
+        result = validate_output(result, "fix" if isinstance(result, dict) and result.get("edits") else "verify")
         usage = completed[-1].get("usage")
         if usage is not None:
             require(isinstance(usage, dict) and all(type(v) is int and v >= 0 for v in usage.values()), "invalid usage")

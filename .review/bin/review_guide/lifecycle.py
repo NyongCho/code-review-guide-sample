@@ -4,9 +4,9 @@ import copy
 from datetime import datetime
 
 from .contracts import EMPTY_FINDINGS_ERROR, Json, ValidationError, digest, hex_digest, require, validate_config, validate_output, validate_run
-from .policy import check_patch, classify_risk
+from .policy import automatic_path_error, classify_risk
 
-MODEL_FIELDS = {"status", "findings", "summary", "risk", "patch", "dispositions"}
+MODEL_FIELDS = {"status", "findings", "summary", "risk", "patch", "edits", "dispositions"}
 
 
 def initial_state(run: Json, config: Json) -> Json:
@@ -89,8 +89,8 @@ def advance(state: Json, event: Json, config: Json) -> Json:
     if kind == "patch_result":
         require(result["phase"] == "publish", "patch result out of sequence")
         published = event["result"]
+        result.pop("edits", None)
         if published.get("status") == "needs_human" and published.get("format_feedback"):
-            result.pop("patch", None)
             return _correct_fix_format(result, cfg, published["format_feedback"])
         if published.get("status") != "verified":
             return _finish(result, published.get("status", "failed"), published.get("reason", "patch not published"))
@@ -100,7 +100,6 @@ def advance(state: Json, event: Json, config: Json) -> Json:
         result.update(head_sha=published["head_sha"], input_digest=published["input_digest"],
                       tested_head=None, reviewed_head=None, ci_status="pending", after_fix=True)
         result["candidates"] = {}
-        result.pop("patch", None)
         return _next(result, "tests")
     require(kind == "model_result", "unknown event kind")
     role = event.get("role")
@@ -109,11 +108,13 @@ def advance(state: Json, event: Json, config: Json) -> Json:
     raw = event.get("result", {})
     try:
         model = validate_output({key: value for key, value in raw.items() if key in MODEL_FIELDS}, role)
-    except (ValidationError, AttributeError):
+    except (ValidationError, AttributeError, TypeError):
+        if role == "fix":
+            return _correct_fix_format(result, cfg, "Return one complete file edit per path using the output schema.")
         return _finish(result, "failed", "invalid model output")
     result["history"].append({"round": result["round"], "role": role, "head_sha": result["head_sha"], "result": model})
-    if role == "fix" and model["status"] == "failed" and model["summary"] == EMPTY_FINDINGS_ERROR:
-        return _correct_fix_format(result, cfg, "For a proposed patch with no new findings, return status verified with empty findings and dispositions.")
+    if role == "fix" and model["status"] == "failed" and model["summary"] in {EMPTY_FINDINGS_ERROR, "invalid model output"}:
+        return _correct_fix_format(result, cfg, "Return complete file edits with status verified and empty findings and dispositions when proposing a fix.")
     if model["status"] in {"incomplete", "failed", "needs_human"}:
         return _finish(result, model["status"], raw.get("reason", model["summary"]))
     if role in {"bugs", "security"}:
@@ -135,16 +136,15 @@ def advance(state: Json, event: Json, config: Json) -> Json:
         result["risk"] = max((risk, result.get("risk", "low")), key={"low": 0, "medium": 1, "high": 2}.get)
         return _budget(_next(result, "security" if role == "bugs" else "verify"), cfg)
     if role == "fix":
-        if not model["patch"]:
-            return _finish(result, "needs_human", "fixer did not propose a patch")
-        decision = check_patch(model["patch"], result, cfg, None)
-        if decision.get("format_feedback"):
-            return _correct_fix_format(result, cfg, decision["format_feedback"])
-        if decision["status"] != "verified":
-            return _finish(result, "needs_human", decision["reason"])
+        if not model.get("edits"):
+            return _finish(result, "needs_human", "fixer did not propose file edits")
+        for edit in model["edits"]:
+            reason = automatic_path_error(edit["path"], edit["operation"] == "create", result, cfg)
+            if reason:
+                return _finish(result, "needs_human", reason)
         if _remaining_calls(result, cfg) < 3:
             return _finish(result, "incomplete", "insufficient call budget to review a repaired head")
-        result["patch"] = model["patch"]
+        result["edits"] = model["edits"]
         result["fixed_ids"] = [item["id"] for item in result["open_findings"]]
         return _next(result, "publish")
     expected = {item["id"] for item in result["open_findings"]}

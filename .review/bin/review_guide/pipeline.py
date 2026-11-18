@@ -64,7 +64,7 @@ def collect_state(state: Json, config: Json, outcomes: Json, result: Json | None
     state = advance(state, event(state, 'model_result', role=state['next_role'],
                                 result=selected_result(cfg['mode'], outcomes, result)), cfg)
     if state['phase'] == 'publish':
-        publication = publish_patch(state, state['patch'], cfg, repo, api)
+        publication = publish_patch(state, state['edits'], cfg, repo, api)
         state = advance(state, event(state, 'patch_result', result=publication), cfg)
     if state['next_role']:
         state['role'] = state['next_role']
