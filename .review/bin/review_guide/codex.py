@@ -11,7 +11,7 @@ import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .contracts import Json, ValidationError, require, validate_config, validate_output, validate_run
+from .contracts import EMPTY_FINDINGS_ERROR, Json, ValidationError, require, validate_config, validate_output, validate_run
 
 MAX_OUTPUT = 2_000_000
 
@@ -47,6 +47,10 @@ def normalize_result(raw: str, exit_code: int | None, timed_out: bool) -> Json:
         if usage is not None:
             require(isinstance(usage, dict) and all(type(v) is int and v >= 0 for v in usage.values()), "invalid usage")
         return result | {"usage": usage}
+    except ValidationError as exc:
+        if str(exc) == EMPTY_FINDINGS_ERROR:
+            return _failure("failed", EMPTY_FINDINGS_ERROR)
+        return _failure("failed", "invalid model output")
     except (ValueError, KeyError, TypeError):
         return _failure("failed", "invalid model output")
 
