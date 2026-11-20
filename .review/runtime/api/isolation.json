@@ -3,8 +3,8 @@
   "mode": "api",
   "codex_version": "0.169.0",
   "runner": "linux",
-  "policy_digest": "f9bff9cb64c0887e2e240c59ffd04524ddd6289b6b18ae59917030b67170da9d",
-  "post_action_policy_digest": "bec3df18df25707127dffe768219f79b2d7feb023a4f19b81643b4a999f5a3b8",
+  "policy_digest": "d19b907976695b399dfb381d7ada67f25a60950528a8476832634690efdd0e07",
+  "post_action_policy_digest": "9501994e67a0be9edb4197d30dc14669bb943159772b2f29b0dcae5c3643103b",
   "checks": {
     "outside_read_denied": true,
     "home_read_denied": true,
