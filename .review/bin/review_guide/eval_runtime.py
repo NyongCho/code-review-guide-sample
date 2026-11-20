@@ -89,7 +89,7 @@ def ci_eval_main(operation, repo, cfg, api):
     import shutil
     from .contracts import relative_path
     from .codex import normalize_action
-    from .pipeline import read, write
+    from .pipeline import prepare_api_home, read, write
     if operation=='eval-entry':
         require(os.environ['GITHUB_REF']==cfg['trusted_ref'], 'evaluation must start on protected ref')
         require(cfg.get('entry_isolation',{}).get('status')=='verified', 'entry isolation needs verification')
@@ -129,9 +129,7 @@ def ci_eval_main(operation, repo, cfg, api):
         if role=='bugs':
             require(not workspace.exists() and not home.exists(), 'evaluation runtime paths already exist')
             shutil.copytree('input/workspace',workspace)
-            home.mkdir(mode=0o700)
-            for name in ('config.toml','isolation.json'):
-                shutil.copyfile(repo/'.review/runtime/api'/name,home/name)
+            prepare_api_home(repo / '.review/runtime/api', home)
         bundle['config']['isolation'].update(codex_home=str(home),report_path=str(home/'isolation.json'))
         request = trial_request(bundle,role,workspace)
         minutes = int(request['timeout_s']//60)

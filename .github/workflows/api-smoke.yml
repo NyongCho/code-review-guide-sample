@@ -25,6 +25,10 @@
           }
         },
         {
+          "name": "Select the verified Codex install root",
+          "run": "echo /home/runner/review-tools/bin >> \"$GITHUB_PATH\""
+        },
+        {
           "uses": "openai/codex-action@13e9c17417b29e9a276f73ec6ed7fb574137d3c3",
           "with": {
             "codex-version": "0.169.0"
@@ -63,7 +67,10 @@
             "retention-days": 14
           }
         }
-      ]
+      ],
+      "env": {
+        "NPM_CONFIG_PREFIX": "/home/runner/review-tools"
+      }
     }
   }
 }
