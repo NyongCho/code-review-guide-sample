@@ -21,6 +21,10 @@
           }
         },
         {
+          "name": "Select the verified Codex install root",
+          "run": "echo /home/runner/review-tools/bin >> \"$GITHUB_PATH\""
+        },
+        {
           "name": "Install pinned official tools without model call",
           "uses": "openai/codex-action@13e9c17417b29e9a276f73ec6ed7fb574137d3c3",
           "with": {
@@ -54,7 +58,10 @@
             "retention-days": 14
           }
         }
-      ]
+      ],
+      "env": {
+        "NPM_CONFIG_PREFIX": "/home/runner/review-tools"
+      }
     }
   }
 }
