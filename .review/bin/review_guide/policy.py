@@ -92,7 +92,7 @@ def patch_paths(patch: str) -> list[str]:
 
 
 def check_patch(patch: str, run: Json, config: Json,
-                approval: VerifiedApproval | None) -> Json:
+                approval: VerifiedApproval | None, *, created_paths: set[str] | None = None) -> Json:
     cfg = validate_config(config)
     reject = lambda reason: {"status": "needs_human", "reason": reason, "paths": []}
     if not cfg["auto_fix"]:
@@ -120,15 +120,25 @@ def check_patch(patch: str, run: Json, config: Json,
         return {"status": "verified", "reason": "scoped human approval", "paths": paths}
     sections = patch.split("diff --git ")[1:]
     for path in paths:
-        if not matches(path, cfg["fix_allowed"]):
-            return reject("path is outside automatic fix scope")
-        if matches(path, SENSITIVE + cfg["sensitive_paths"]):
-            return reject("sensitive path")
-        is_test = path.startswith("tests/") or "/tests/" in path
-        # New tests are allowed. Existing checks require a human, even if the edit looks harmless.
-        is_new = any("\nnew file mode 100644\n" in section and f"\n+++ b/{path}\n" in section for section in sections)
-        if is_test and not is_new:
-            return reject("existing verification changed")
-        if not is_test and path not in run.get("fix_paths", []):
-            return reject("path is unrelated to verified findings")
+        is_new = path in created_paths if created_paths is not None else any("\nnew file mode 100644\n" in section and f"\n+++ b/{path}\n" in section for section in sections)
+        reason = automatic_path_error(path, is_new, run, cfg)
+        if reason:
+            return reject(reason)
     return {"status": "verified", "reason": "verified finding within automatic scope", "paths": paths}
+
+
+def automatic_path_error(path: str, is_new: bool, run: Json, cfg: Json) -> str | None:
+    if not cfg["auto_fix"] or not matches(path, cfg["fix_allowed"]):
+        return "path is outside automatic fix scope"
+    if matches(path, SENSITIVE + cfg["sensitive_paths"]):
+        return "sensitive path"
+    parts = path.split("/")
+    test_directory = any(part in {"test", "tests", "__tests__", "spec", "specs"} for part in parts[:-1])
+    test_filename = matches(parts[-1], ["test*.py", "*_test.*", "*.test.*", "*.spec.*", "*Test.java", "*Tests.java"])
+    if not is_new and (test_directory or test_filename):
+        return "existing verification changed"
+    if is_new and "tests" in parts[:-1]:
+        return None
+    if path not in run.get("fix_paths", []):
+        return "path is unrelated to verified findings"
+    return None
