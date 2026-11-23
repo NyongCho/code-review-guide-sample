@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import tomllib
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -69,6 +70,24 @@ def collect_state(state: Json, config: Json, outcomes: Json, result: Json | None
     if state['next_role']:
         state['role'] = state['next_role']
     return state
+
+
+def prepare_api_home(source: Path, home: Path) -> None:
+    """Use the profile from protected policy to select the hosted CLI install layout."""
+    home.mkdir(mode=0o700)
+    for name in ('config.toml', 'isolation.json'):
+        shutil.copyfile(source / name, home / name)
+
+    prefix = Path('/home/runner/review-tools')
+    native = (prefix / 'lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64'
+              / 'vendor/x86_64-unknown-linux-musl/bin/codex')
+    profile = tomllib.loads((home / 'config.toml').read_text())
+    filesystem = profile.get('permissions', {}).get('review', {}).get('filesystem', {})
+    if filesystem.get(str(native)) == 'read':
+        with open(os.environ['GITHUB_ENV'], 'a') as env:
+            env.write(f'NPM_CONFIG_PREFIX={prefix}\n')
+        with open(os.environ['GITHUB_PATH'], 'a') as path:
+            path.write(f'{prefix}/bin\n')
 
 
 def test_command(source: Path, command: list[str], name: str) -> list[str]:
@@ -240,11 +259,7 @@ def ci_main(operation: str, artifact_name=None, destination=None) -> Json:
             require(not workspace.exists(), 'worker input destination already exists')
             shutil.copytree('input/workspace', workspace)
             home = Path('/home/runner/review-home')
-            home.mkdir(mode=0o700)
-            source = repo / '.review/runtime/api'
-            # These are operator-verified, non-secret files from protected policy, never worker output.
-            shutil.copyfile(source/'config.toml', home/'config.toml')
-            shutil.copyfile(source/'isolation.json', home/'isolation.json')
+            prepare_api_home(repo / '.review/runtime/api', home)
             effective['isolation'].update(codex_home=str(home), report_path=str(home/'isolation.json'))
         request = build_request(state['next_role'], state, workspace, effective)
         Path('request').mkdir(exist_ok=True)
